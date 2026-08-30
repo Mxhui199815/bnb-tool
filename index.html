@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BNB 批量工具 - 官网</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 40px 20px 60px; }
+  .hero { text-align: center; padding: 40px 0 30px; }
+  .hero h1 { font-size: 44px; margin-bottom: 8px; }
+  .hero p { color: #94a3b8; font-size: 17px; }
+  .badge { display:inline-block; background:#0e7490; color:#fff; border-radius:999px; padding:4px 14px; font-size:13px; margin-top:12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 34px 0; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+  .card h3 { margin-bottom: 8px; font-size: 17px; }
+  .card p { color: #94a3b8; font-size: 13px; }
+  .tiers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0 30px; }
+  .tier { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px 6px; text-align: center; }
+  .tier b { font-size: 20px; color: #7dd3fc; display: block; }
+  .tier span { color: #94a3b8; font-size: 12px; }
+  .dl { text-align: center; margin: 20px 0 30px; }
+  .btn { display: inline-block; background: #0ea5e9; color: #fff; text-decoration: none; padding: 14px 34px; border-radius: 10px; font-size: 17px; font-weight: 600; }
+  .btn:hover { background: #0284c7; }
+  .steps { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 22px; margin: 20px 0; }
+  .steps ol { padding-left: 22px; color: #cbd5e1; font-size: 14px; }
+  .steps li { margin: 6px 0; }
+  code { background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 1px 6px; color: #7dd3fc; font-size: 13px; }
+  .warn { background: #3b1212; border: 1px solid #b91c1c; color: #fecaca; border-radius: 10px; padding: 16px; font-size: 13px; margin: 20px 0; }
+  footer { text-align: center; color: #64748b; font-size: 12px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>💸 BNB 批量工具</h1>
+    <p>本地运行的 BNB 工具箱：批量转账 · 冷钱包 · 钱包管理 · 资产归集 · 薄饼交易</p>
+    <div class="badge">🔒 本地离线运行 · 密钥不出本机</div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><h3>💸 批量转账</h3><p>Excel/CSV 名单逐笔发送，多钱包轮询，余额检查，失败自动重试。</p></div>
+    <div class="card"><h3>🔐 创建冷钱包</h3><p>新助记词/已有助记词/独立私钥批量生成，勾选删除，导出含私钥 CSV。</p></div>
+    <div class="card"><h3>🗂️ 钱包管理</h3><p>批量导入、打标签、批量查余额、复制地址/私钥、本地持久化。</p></div>
+    <div class="card"><h3>🧹 资产归集</h3><p>把多个钱包的 BNB 归集到目标地址，预览手续费，后台任务带进度。</p></div>
+    <div class="card"><h3>🔄 薄饼交易</h3><p>批量在 PancakeSwap 买卖（BNB↔Token），滑点/输出预估/自动授权。</p></div>
+    <div class="card"><h3>👑 会员制</h3><p>1周 / 1月 / 1年 / 终生四档，输入会员密钥登录，到期自动锁定。</p></div>
+  </div>
+
+  <h2 style="text-align:center; margin-top:10px;">会员档位</h2>
+  <div class="tiers">
+    <div class="tier"><b>1周</b><span>会员</span></div>
+    <div class="tier"><b>1月</b><span>会员</span></div>
+    <div class="tier"><b>1年</b><span>会员</span></div>
+    <div class="tier"><b>终生</b><span>会员</span></div>
+  </div>
+
+  <div class="dl">
+    <a class="btn" href="bnb-batch-transfer.zip" download>⬇️ 下载 APP (zip)</a>
+    <p style="color:#94a3b8; font-size:13px; margin-top:10px;">Windows 版 · 解压即用 · 需要 Node.js ≥ 18</p>
+  </div>
+
+  <div class="steps">
+    <h3>📖 使用方法</h3>
+    <ol>
+      <li>下载并解压 <code>bnb-batch-transfer.zip</code></li>
+      <li>首次使用：在目录里运行 <code>npm install</code>(或 <code>pnpm install</code>)</li>
+      <li>双击 <code>start-app.bat</code> 启动，自动打开浏览器</li>
+      <li>输入会员密钥登录（联系管理员获取会员码）</li>
+    </ol>
+  </div>
+
+  <div class="warn">
+    ⚠️ <b>安全提示：</b>本工具为本地软件，所有密钥只在你自己电脑的内存中处理，不上传、不落盘。
+    请从官方渠道下载，谨防仿冒；勿在公共电脑使用；正式操作前先小额测试。
+  </div>
+
+  <footer>BNB 批量工具 · 本地会员制软件 · 私钥安全由你掌控</footer>
+</div>
+</body>
+</html>
