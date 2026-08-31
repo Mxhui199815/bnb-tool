@@ -108,12 +108,14 @@
 
   /** 代币模式余额检查: 每个发送钱包的代币余额 >= 分配转出总量 */
   async function checkTokenBalances(engine, tokenAddr, items) {
+    let decimals = 18;
+    try { decimals = (await E.getTokenInfo(engine, tokenAddr)).decimals; } catch (e) {}
     const tokenIface = new ethers.Interface(E.TOKEN_ABI);
     const assigned = new Map();
     for (const it of items) {
       const addr = it.sender.address;
       if (!assigned.has(addr)) assigned.set(addr, 0n);
-      assigned.set(addr, assigned.get(addr) + ethers.parseUnits(String(it.amount), 18));
+      assigned.set(addr, assigned.get(addr) + ethers.parseUnits(String(it.amount), decimals));
     }
     let ok = true;
     for (const [addr, total] of assigned) {
