@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831j">
+<link rel="stylesheet" href="style.css?v=20260831k">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -41,6 +41,7 @@
     <a href="#/manage">🗂️ 钱包管理</a>
     <a href="#/transfer">💸 批量转账</a>
     <a href="#/consolidate">🧹 资产归集</a>
+    <a href="#/airdrop">🎁 批量空投</a>
     <a href="#/swap">🔄 批量交易</a>
   </nav>
 </header>
@@ -84,6 +85,7 @@
         <label>费用模式
           <select id="cfgFeeMode"><option value="legacy">legacy (推荐)</option><option value="eip1559">eip1559</option></select>
         </label>
+        <label>代币地址(选填, 留空转 BNB) <input type="text" id="cfgToken" placeholder="0x… 如 USDT 合约地址"><span id="cfgTokenSym" class="hint"></span></label>
         <label class="check"><input type="checkbox" id="cfgSkipBalance"> 跳过余额检查(不推荐)</label>
       </div>
     </section>
@@ -220,6 +222,57 @@
   </div>
 
     <!-- ============ 页面: 批量交易 ============ -->
+
+  <!-- ============ 页面: 批量空投 ============ -->
+  <div class="page" id="page-airdrop">
+    <section class="card">
+      <h2>空投参数</h2>
+      <div class="row">
+        <label>接收地址(每行一个地址, 可整框粘贴)
+          <textarea id="airdropAddrs" rows="8" placeholder="0x1111…&#10;0x2222…&#10;0x3333…"></textarea>
+        </label>
+      </div>
+      <div class="grid2">
+        <label>代币地址(选填, 留空空投 BNB) <input type="text" id="airdropToken" placeholder="0x… 如 USDT"><span id="airdropTokenSym" class="hint"></span></label>
+        <label>每笔金额 (BNB 或代币) <input type="number" id="airdropAmount" value="0.01" min="0" step="0.00000001"></label>
+      </div>
+    </section>
+    <section class="card">
+      <h2>空投钱包</h2>
+      <div class="row">
+        <select id="airdropWalletType">
+          <option value="mnemonic" selected>助记词</option>
+          <option value="privateKeys">私钥列表(逗号分隔)</option>
+        </select>
+      </div>
+      <div class="row">
+        <textarea id="airdropWalletInput" rows="3" placeholder="粘贴 12/24 个助记词单词…"></textarea>
+      </div>
+      <div class="err" id="airdropWalletErr"></div>
+    </section>
+    <section class="card">
+      <h2>检查与空投</h2>
+      <div class="row">
+        <button id="airdropPreview" class="btn primary">🔍 干跑检查</button>
+        <button id="airdropSend" class="btn danger">🚀 开始空投</button>
+        <span id="airdropHint" class="hint"></span>
+      </div>
+      <div class="err" id="airdropErr"></div>
+      <div id="airdropPreviewBox" hidden>
+        <h3>检查结果 (共 <span id="airdropCount"></span> 个地址)</h3>
+        <div id="airdropWalletCards" class="wallet-cards"></div>
+        <div class="err" id="airdropBalanceErr"></div>
+      </div>
+      <div id="airdropSendBox" hidden>
+        <h3>空投进度 <span id="airdropProgressText"></span></h3>
+        <div class="progress"><div id="airdropProgressBar" class="progress-bar"></div></div>
+        <pre id="airdropLogBox"></pre>
+        <table class="grid" id="airdropResultTable"></table>
+        <button id="airdropDownload" class="btn" hidden>⬇️ 下载结果 CSV</button>
+      </div>
+    </section>
+  </div>
+
   <div class="page" id="page-swap">
 <section class="card">
       <h2>交易参数与合约</h2>
@@ -229,6 +282,8 @@
         <label>Router 合约地址(留空 = 按链自动)
           <input type="text" id="swapRouter" placeholder="PancakeSwap V2">
         </label>
+        <label>合约地址(代币, 填后自动应用到全部行) <input type="text" id="swapTokenAddr" placeholder="0x…"><span id="swapTokenName" class="hint"></span></label>
+        <label>交易金额 BNB <input type="number" id="swapTokenAmount" min="0" step="0.00000001" placeholder="填后自动应用到全部行"></label>
       </div>
       <pre class="keybox" id="swapContractInfo">PancakeSwap V2 Router (主网): 0x10ED43C718714eb63d5aA57B78B54704E256024E
 WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
@@ -236,7 +291,7 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
     </section>
 
 <section class="card">
-      <h2>发送钱包</h2>
+      <h2>交易钱包</h2>
       <div class="row">
         <select id="swapWalletType">
           <option value="managed" selected>管理列表(本会话已导入私钥)</option>
@@ -267,7 +322,7 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
       </div>
       <div class="row" id="swapSummary"></div>
       <table class="grid" id="swapTable" hidden>
-        <thead><tr><th>代币地址</th><th>数量</th><th>方向</th><th>滑点%</th><th>备注</th><th>发送钱包</th><th></th></tr></thead>
+        <thead><tr><th>代币地址</th><th>数量</th><th>方向</th><th>滑点%</th><th>备注</th><th>交易钱包</th><th></th></tr></thead>
         <tbody id="swapBody"></tbody>
       </table>
       <p class="hint">方向: buy=用 BNB 买代币 / sell=卖代币换 BNB; 发送钱包留空则轮询使用。</p>
@@ -343,11 +398,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831j"></script>
-<script src="vendor/exceljs.min.js?v=20260831j"></script>
-<script src="engine.js?v=20260831j"></script>
-<script src="license.js?v=20260831j"></script>
-<script src="webapi.js?v=20260831j"></script>
-<script src="app.js?v=20260831j"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831k"></script>
+<script src="vendor/exceljs.min.js?v=20260831k"></script>
+<script src="engine.js?v=20260831k"></script>
+<script src="license.js?v=20260831k"></script>
+<script src="webapi.js?v=20260831k"></script>
+<script src="app.js?v=20260831k"></script>
 </body>
 </html>
