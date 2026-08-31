@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831d">
+<link rel="stylesheet" href="style.css?v=20260831e">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -108,6 +108,11 @@
   <button id="btnAddRow" class="btn ghost" hidden>＋ 添加一行</button>
   <button id="btnCheckBalances" class="btn ghost" hidden>🔍 查询接收人余额</button>
   <span class="hint" id="listManagedHint"></span>
+</div>
+<div class="row batch-amount-row">
+  <label>每笔金额 (BNB) <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001" class="batch-amount-input"></label>
+  <button id="btnBatchAmount" class="btn ghost">📝 批量填入全部行</button>
+  <span class="hint">给所有已填地址的行统一填写金额</span>
 </div>
       <div id="transferRecvBox" class="manage-picker" hidden>
         <h3>📋 管理列表 · 选择接收人（勾选后加入接收名单）</h3>
@@ -259,7 +264,7 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
       </div>
       <div class="row" id="swapSummary"></div>
       <table class="grid" id="swapTable" hidden>
-        <thead><tr><th>#</th><th>代币地址</th><th>数量</th><th>方向</th><th>滑点%</th><th>备注</th><th>发送钱包</th><th></th></tr></thead>
+        <thead><tr><th>代币地址</th><th>数量</th><th>方向</th><th>滑点%</th><th>备注</th><th>发送钱包</th><th></th></tr></thead>
         <tbody id="swapBody"></tbody>
       </table>
       <p class="hint">方向: buy=用 BNB 买代币 / sell=卖代币换 BNB; 发送钱包留空则轮询使用。</p>
@@ -334,11 +339,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831d"></script>
-<script src="vendor/exceljs.min.js?v=20260831d"></script>
-<script src="engine.js?v=20260831d"></script>
-<script src="license.js?v=20260831d"></script>
-<script src="webapi.js?v=20260831d"></script>
-<script src="app.js?v=20260831d"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831e"></script>
+<script src="vendor/exceljs.min.js?v=20260831e"></script>
+<script src="engine.js?v=20260831e"></script>
+<script src="license.js?v=20260831e"></script>
+<script src="webapi.js?v=20260831e"></script>
+<script src="app.js?v=20260831e"></script>
 </body>
 </html>
