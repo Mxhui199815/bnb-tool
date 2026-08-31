@@ -845,11 +845,12 @@ function renderConManaged() {
   }
   const withKeys = managedWallets.filter((w) => w.privateKey).length;
   $("conManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可归集; 无私钥的只能查余额`;
+  const tokenSym = managedWallets.find((w) => w.conTokenSym)?.conTokenSym || null;
   tb.innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="conManagedAll" checked title="全选"></th>
       <th>#</th>
-      <th>地址</th><th>标签</th><th>可归集</th>
+      <th>地址</th><th>标签</th><th>${tokenSym ? `代币数量 (${esc(tokenSym)})` : "代币数量"}</th><th>可归集</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
@@ -857,6 +858,7 @@ function renderConManaged() {
         <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
+        <td class="mono">${w.conTokenBalance != null ? esc(w.conTokenBalance) : "—"}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
 }
@@ -903,16 +905,37 @@ $("conToken").addEventListener("input", () => {
   conSymTimer = setTimeout(async () => {
     const addr = $("conToken").value.trim();
     const sp = $("conTokenSym");
-    if (!ethers.isAddress(addr)) { sp.textContent = ""; return; }
+    if (!ethers.isAddress(addr)) {
+      sp.textContent = "";
+      for (const w of managedWallets) { w.conTokenBalance = null; w.conTokenSym = null; }
+      renderConManaged();
+      return;
+    }
     sp.textContent = "查询中…";
     try {
       const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
       const info = await window.EngineLib.getTokenInfo(engine, addr);
       sp.textContent = info.symbol ? "币种: " + info.symbol : "";
+      if (managedWallets.length) {
+        try {
+          const data = await api("/api/wallets/balances", {
+            rpc: $("cfgRpc").value.trim() || undefined,
+            chainId: Number($("cfgChainId").value) || 56,
+            addresses: managedWallets.map((w) => w.address),
+            token: addr,
+          });
+          for (const b of data.balances) {
+            const w = managedWallets.find((x) => x.address.toLowerCase() === b.address.toLowerCase());
+            if (w && b.tokenBalance != null) { w.conTokenBalance = b.tokenBalance; w.conTokenSym = data.symbol || info.symbol || "TOKEN"; }
+          }
+          renderConManaged();
+        } catch (e3) {}
+      }
     } catch (e2) { sp.textContent = ""; }
   }, 700);
 });
-$("btnConPreview").addEventListener("click", async () => {
+
+  $("btnConPreview").addEventListener("click", async () => {
   setErr("conErr", "");
   const cfg = conConfig();
   if (!cfg.target || !/^0x[a-fA-F0-9]{40}$/.test(cfg.target)) { setErr("conErr", "目标地址无效(需 0x 开头 40 位十六进制)"); return; }
