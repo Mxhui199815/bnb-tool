@@ -119,6 +119,17 @@ $("btnCheckBalances").addEventListener("click", async () => {
   finally { $("btnCheckBalances").disabled = false; $("btnCheckBalances").textContent = "🔍 查询接收人余额"; }
 });
 
+$("btnBatchAmount").addEventListener("click", () => {
+  const v = $("batchAmount").value.trim();
+  if (v === "" || isNaN(Number(v)) || Number(v) <= 0) { setErr("listErr", "请先填写每笔金额（大于 0）"); return; }
+  const targets = items.filter((it) => it.to);
+  if (!targets.length) { setErr("listErr", "接收名单里还没有地址，先填地址再批量填金额"); return; }
+  setErr("listErr", "");
+  for (const it of items) if (it.to) it.amount = v;
+  renderItems();
+  flashMsg("listErr", `✅ 已把 ${targets.length} 行的金额批量填为 ${v} BNB`, true);
+});
+
 /* 接收名单: 从管理列表勾选添加接收人 */
 function renderTransferRecv() {
   const box = $("transferRecvBox");
@@ -130,12 +141,12 @@ function renderTransferRecv() {
   tb.innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="transferRecvAll" checked title="全选"></th>
-      <th>#</th><th>地址</th><th>标签</th>
+      <th>地址</th><th>标签</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
         <td><input type="checkbox" class="recv-check" data-i="${i}" checked></td>
-        <td>${i + 1}</td>
+        
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
       </tr>`).join("")}</tbody>`;
@@ -226,12 +237,12 @@ function renderTransferManaged() {
   tb.innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="transferManagedAll" checked title="全选"></th>
-      <th>#</th><th>地址</th><th>标签</th><th>发送方</th>
+      <th>地址</th><th>标签</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
         <td><input type="checkbox" class="transfer-managed-check" data-i="${i}" checked></td>
-        <td>${i + 1}</td>
+        
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -287,11 +298,11 @@ async function doPreview() {
 function renderPreview(data) {
   $("previewBox").hidden = false;
   $("walletCards").innerHTML = data.wallets.map((w) => `
-    <div class="wallet-card"><div class="addr">#${w.index} ${w.address}</div></div>`).join("");
+    <div class="wallet-card"><div class="addr">${w.address}</div></div>`).join("");
   $("previewTable").innerHTML = `
-    <thead><tr><th>#</th><th>发送钱包</th><th>收款地址</th><th>金额 BNB</th><th>备注</th></tr></thead>
+    <thead><tr><th>发送钱包</th><th>收款地址</th><th>金额 BNB</th><th>备注</th></tr></thead>
     <tbody>${data.plan.map((p) => `
-      <tr><td>${p.row}</td><td>${esc(p.from)}</td><td>${esc(p.to)}</td><td>${p.amount}</td><td>${esc(p.remark)}</td></tr>`).join("")}</tbody>`;
+      <tr><td>${esc(p.from)}</td><td>${esc(p.to)}</td><td>${p.amount}</td><td>${esc(p.remark)}</td></tr>`).join("")}</tbody>`;
 }
 
 /* ---------------- 发送 ---------------- */
@@ -354,10 +365,10 @@ async function pollJob() {
 function renderResults(results) {
   window._lastResults = results; // 供下载 CSV 使用
   $("resultTable").innerHTML = `
-    <thead><tr><th>#</th><th>发送钱包</th><th>收款地址</th><th>金额</th><th>状态</th><th>Tx Hash</th><th>区块</th><th>错误</th></tr></thead>
+    <thead><tr><th>发送钱包</th><th>收款地址</th><th>金额</th><th>状态</th><th>Tx Hash</th><th>区块</th><th>错误</th></tr></thead>
     <tbody>${results.map((r) => `
       <tr>
-        <td>${r.row}</td><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td>${r.amount}</td>
+        <td>${esc(r.from)}</td><td>${esc(r.to)}</td><td>${r.amount}</td>
         <td class="${r.status === "ok" ? "status-ok" : "status-failed"}">${r.status === "ok" ? "成功" : "失败"}</td>
         <td>${r.txHash ? esc(r.txHash) : ""}</td><td>${esc(r.blockNumber)}</td><td>${esc(r.error)}</td>
       </tr>`).join("")}</tbody>`;
@@ -481,12 +492,12 @@ function renderGenTable() {
   $("genTable").innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="genSelectAll" title="全选"></th>
-      <th>序号</th><th>地址</th><th>私钥</th><th>操作</th>
+      <th>地址</th><th>私钥</th><th>操作</th>
     </tr></thead>
     <tbody>${genState.wallets.map((w, i) => `
       <tr>
         <td><input type="checkbox" class="gen-check" data-i="${i}"></td>
-        <td>${w.index}</td>
+        
         <td class="mono">${esc(w.address)}</td>
         <td class="mono" id="genkey-${i}">${esc(maskKey(w.privateKey))}</td>
         <td>
@@ -600,10 +611,10 @@ function renderMgrTable() {
   $("listManagedHint").textContent = managedWallets.length ? `管理列表共 ${managedWallets.length} 个钱包, 可在转账页勾选加入接收名单` : "";
   if (!managedWallets.length) { tb.innerHTML = ""; return; }
   tb.innerHTML = `
-    <thead><tr><th>#</th><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
+    <thead><tr><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td>${i + 1}</td>
+        
         <td class="mono">${esc(w.address)}</td>
         <td><input data-mlabel="${i}" value="${esc(w.label)}"></td>
         <td class="mono">${w.balance != null ? esc(w.balance) : "—"}</td>
@@ -737,12 +748,12 @@ function renderConManaged() {
   tb.innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="conManagedAll" checked title="全选"></th>
-      <th>#</th><th>地址</th><th>标签</th><th>可归集</th>
+      <th>地址</th><th>标签</th><th>可归集</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
         <td><input type="checkbox" class="con-managed-check" data-i="${i}" checked></td>
-        <td>${i + 1}</td>
+        
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -787,10 +798,10 @@ $("btnConPreview").addEventListener("click", async () => {
     $("conPreviewBox").hidden = false;
     $("conSummary").textContent = `共 ${data.plan.length} 个源钱包, 可归集 ${data.okCount} 个, 合计 ${data.total} BNB (目标: ${data.target})`;
     $("conTable").innerHTML = `
-      <thead><tr><th>#</th><th>源地址</th><th>余额 BNB</th><th>手续费 ~BNB</th><th>归集金额 BNB</th><th>状态</th></tr></thead>
+      <thead><tr><th>源地址</th><th>余额 BNB</th><th>手续费 ~BNB</th><th>归集金额 BNB</th><th>状态</th></tr></thead>
       <tbody>${data.plan.map((p) => `
         <tr>
-          <td>${p.index}</td><td class="mono">${esc(p.address)}</td>
+          <td class="mono">${esc(p.address)}</td>
           <td class="mono">${esc(p.balance)}</td><td class="mono">${esc(p.fee)}</td>
           <td class="mono">${p.ok ? esc(p.amount) : "—"}</td>
           <td class="${p.ok ? "status-ok" : "status-failed"}">${p.ok ? "✅ 可归集" : esc(p.reason)}</td>
@@ -829,9 +840,9 @@ async function pollConJob() {
     $("conProgressBar").style.width = pct + "%";
     if (data.results && data.results.length) {
       $("conResultTable").innerHTML = `
-        <thead><tr><th>#</th><th>源地址</th><th>目标</th><th>金额</th><th>状态</th><th>Tx Hash</th><th>错误</th></tr></thead>
+        <thead><tr><th>源地址</th><th>目标</th><th>金额</th><th>状态</th><th>Tx Hash</th><th>错误</th></tr></thead>
         <tbody>${data.results.map((r) => `
-          <tr><td>${r.row}</td><td class="mono">${esc(r.from)}</td><td class="mono">${esc(r.to)}</td><td>${r.amount}</td>
+          <tr><td class="mono">${esc(r.from)}</td><td class="mono">${esc(r.to)}</td><td>${r.amount}</td>
           <td class="${r.status === "ok" ? "status-ok" : "status-failed"}">${r.status === "ok" ? "成功" : "失败"}</td>
           <td class="mono">${r.txHash ? esc(r.txHash) : ""}</td><td>${esc(r.error)}</td></tr>`).join("")}</tbody>`;
       window._lastConResults = data.results;
@@ -875,7 +886,7 @@ function renderSwapTable() {
     if (it.direction === "buy") buy += Number(it.amount) || 0; else sell += Number(it.amount) || 0;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${esc(it.row)}</td>
+      
       <td><input data-sw="${i}" data-k="token" value="${esc(it.token)}" style="min-width:260px"></td>
       <td><input data-sw="${i}" data-k="amount" value="${esc(it.amount)}"></td>
       <td><select data-sw="${i}" data-k="direction">
@@ -991,12 +1002,12 @@ function renderSwapManaged() {
   tb.innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="swapManagedAll" checked title="全选"></th>
-      <th>#</th><th>地址</th><th>标签</th><th>发送方</th>
+      <th>地址</th><th>标签</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
         <td><input type="checkbox" class="swap-managed-check" data-i="${i}" checked></td>
-        <td>${i + 1}</td>
+        
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -1061,10 +1072,10 @@ $("swapBtnPreview").addEventListener("click", async () => {
     $("swapRouterShown").textContent = data.router;
     $("swapPreviewBox").hidden = false;
     $("swapPreviewTable").innerHTML = `
-      <thead><tr><th>#</th><th>代币</th><th>方向</th><th>数量</th><th>预计输出</th><th>最少输出(滑点)</th><th>状态</th></tr></thead>
+      <thead><tr><th>代币</th><th>方向</th><th>数量</th><th>预计输出</th><th>最少输出(滑点)</th><th>状态</th></tr></thead>
       <tbody>${data.plan.map((p) => `
         <tr>
-          <td>${p.row}</td>
+          
           <td class="mono">${esc(p.symbol)} ${esc(p.token.slice(0, 10))}…</td>
           <td>${p.direction === "buy" ? "买" : "卖"}</td>
           <td class="mono">${esc(p.amountIn)}</td>
@@ -1110,10 +1121,10 @@ async function pollSwapJob() {
     $("swapProgressBar").style.width = pct + "%";
     if (data.results && data.results.length) {
       $("swapResultTable").innerHTML = `
-        <thead><tr><th>#</th><th>代币</th><th>方向</th><th>数量</th><th>状态</th><th>Approve</th><th>Swap Tx</th><th>错误</th></tr></thead>
+        <thead><tr><th>代币</th><th>方向</th><th>数量</th><th>状态</th><th>Approve</th><th>Swap Tx</th><th>错误</th></tr></thead>
         <tbody>${data.results.map((r) => `
           <tr>
-            <td>${r.row}</td>
+            
             <td class="mono">${esc(r.symbol)} ${esc(r.token.slice(0, 10))}…</td>
             <td>${r.direction === "buy" ? "买" : "卖"}</td>
             <td>${esc(r.amount)}</td>
