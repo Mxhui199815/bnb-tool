@@ -674,14 +674,16 @@ function renderMgrTable() {
   if (window.renderTransferRecv) renderTransferRecv();
   $("listManagedHint").textContent = managedWallets.length ? `管理列表共 ${managedWallets.length} 个钱包, 可在转账页勾选加入接收名单` : "";
   if (!managedWallets.length) { tb.innerHTML = ""; return; }
+  const hasTokenCol = managedWallets.some((w) => w.tokenBalance != null);
   tb.innerHTML = `
-    <thead><tr><th style="width:34px"><input type="checkbox" id="mgrSelectAll" title="全选"></th><th>#</th><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
+    <thead><tr><th style="width:34px"><input type="checkbox" id="mgrSelectAll" title="全选"></th><th>#</th><th>地址</th><th>标签</th>${hasTokenCol ? `<th>代币余额 (${esc(managedWallets.find(w=>w.tokenSym)?.tokenSym || "TOKEN")})</th>` : ""}<th>余额 (BNB)</th><th>操作</th></tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
         <td><input type="checkbox" class="mgr-check" data-i="${i}"></td>
         <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td><input data-mlabel="${i}" value="${esc(w.label)}"></td>
+        ${hasTokenCol ? `<td class="mono">${w.tokenBalance != null ? esc(w.tokenBalance) : "—"}</td>` : ""}
         <td class="mono">${w.balance != null ? esc(w.balance) : "—"}</td>
         <td>
           <button class="btn ghost" data-mcopyaddr="${i}">复制地址</button>
@@ -730,28 +732,26 @@ $("btnMgrBalances").addEventListener("click", async () => {
       rpc: $("cfgRpc").value.trim() || undefined,
       chainId: Number($("cfgChainId").value) || 56,
       addresses: managedWallets.map((w) => w.address),
+      token: $("mgrTokenAddr").value.trim() || undefined,
     });
     const map = {};
-    for (const b of data.balances) map[b.address.toLowerCase()] = b.balance;
-    if (data.tokenBalances) {
-       for (const tb of data.tokenBalances) {
-         const key = tb.address.toLowerCase();
-         if (!w.balances) w.balances = {};
-         w.balances[tb.symbol] = tb.balance;
-       }
-     } else {
-       for (const b of data.balances) map[b.address.toLowerCase()] = b.balance;
-       for (const w of managedWallets) {
-         w.balance = map[w.address.toLowerCase()] ?? null;
-         w.tokenSym = data.symbol || "BNB";
-       }
-     }
+    const tokenSym = data.symbol || null;
+    for (const b of data.balances) {
+      map[b.address.toLowerCase()] = b.balance;
+      if (b.tokenBalance != null) {
+        const w = managedWallets.find((x) => x.address.toLowerCase() === b.address.toLowerCase());
+        if (w) { w.tokenBalance = b.tokenBalance; w.tokenSym = tokenSym; }
+      }
+    }
+    for (const w of managedWallets) {
+      w.balance = map[w.address.toLowerCase()] ?? null;
+      if (!data.isToken) { w.tokenBalance = null; w.tokenSym = null; }
+    }
     renderMgrTable();
   } catch (e) { setErr("mgrErr", e.message); }
   finally { $("btnMgrBalances").disabled = false; }
 });
-
-$("btnMgrExport").addEventListener("click", () => {
+  $("btnMgrExport").addEventListener("click", () => {
   if (!managedWallets.length) return;
   const withKeys = $("mgrExportKeys").checked;
   if (withKeys && !confirm("导出【含私钥】: 请确保保存在安全位置!\n(仅本次会话导入的钱包才有私钥)\n\n确定?")) return;
