@@ -305,13 +305,16 @@ $("cfgToken").addEventListener("input", () => {
   cfgTokenSymTimer = setTimeout(async () => {
     const addr = $("cfgToken").value.trim();
     const sp = $("cfgTokenSym");
-    if (!ethers.isAddress(addr)) { sp.textContent = ""; return; }
+    const hintEl = $("recvTokenHint");
+    if (!ethers.isAddress(addr)) { sp.textContent = ""; if (hintEl) hintEl.textContent = "请先在「转账参数」填写代币合约地址"; return; }
     sp.textContent = "查询中…";
+    if (hintEl) hintEl.textContent = "接收币种: 查询中…";
     try {
       const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
       const info = await window.EngineLib.getTokenInfo(engine, addr);
       sp.textContent = info.symbol ? "币种: " + info.symbol : "";
-    } catch (e2) { sp.textContent = ""; }
+      if (hintEl) hintEl.textContent = info.symbol ? "接收币种: " + info.symbol + "（来自转账参数代币合约）" : "接收币种: 已填代币合约地址";
+    } catch (e2) { sp.textContent = ""; if (hintEl) hintEl.textContent = "接收币种: 已填代币合约地址(查询币名失败)"; }
   }, 700);
 });
 
@@ -977,6 +980,7 @@ $("btnConDownload").addEventListener("click", () => {
 });
 
 /* 初始渲染(放在所有声明之后, 避免 TDZ) */
+if ($("recvTokenHint")) $("recvTokenHint").textContent = $("cfgToken").value.trim() ? "接收币种: 已填代币合约地址" : "请先在「转账参数」填写代币合约地址";
 renderItems();
 // 默认「管理列表」置顶, 触发一次切换让界面正确显示
 $("walletType").dispatchEvent(new Event("change"));
