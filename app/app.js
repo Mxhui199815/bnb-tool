@@ -587,8 +587,20 @@ const MGR_PLACEHOLDER = {
   mnemonic: "粘贴助记词(12/24 个单词)…",
   privateKeys: "粘贴私钥, 逗号分隔, 如: 0x…,0x…",
   csv: "粘贴 CSV, 每行: address[,privateKey][,label]",
+  csvfile: "选择 CSV / Excel 文件导入",
 };
-$("mgrMode").addEventListener("change", () => { $("mgrInput").placeholder = MGR_PLACEHOLDER[$("mgrMode").value]; });
+$("mgrMode").addEventListener("change", () => {
+  const m = $("mgrMode").value;
+  $("mgrInput").placeholder = MGR_PLACEHOLDER[m];
+  $("mgrInput").hidden = m === "csvfile";
+  $("btnMgrFile").hidden = m !== "csvfile";
+  if (m !== "csvfile") $("mgrFileName").textContent = "";
+});
+$("btnMgrFile").addEventListener("click", () => $("mgrFile").click());
+$("mgrFile").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (f) { $("mgrFileName").textContent = "已选择: " + f.name; setErr("mgrErr", ""); }
+});
 
 async function loadManaged() {
   try {
@@ -627,14 +639,23 @@ $("btnMgrImport").addEventListener("click", async () => {
   setErr("mgrErr", "");
   const mode = $("mgrMode").value;
   const input = $("mgrInput").value.trim();
-  if (!input) { setErr("mgrErr", "请先填写导入内容"); return; }
   const body = { mode };
-  if (mode === "mnemonic") {
-    body.mnemonic = input;
-    body.count = Math.min(1000, Math.max(1, Number($("mgrCount").value) || 1));
-    body.startIndex = Math.max(0, Number($("cfgStartIndex").value) || 0);
-  } else if (mode === "privateKeys") body.privateKeys = input;
-  else body.text = input;
+  if (mode === "csvfile") {
+    const f = $("mgrFile").files[0];
+    if (!f) { setErr("mgrErr", "请先选择 CSV / Excel 文件"); return; }
+    body.mode = "csv";
+    body.filename = f.name;
+    const buf = await f.arrayBuffer();
+    body.dataBase64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+  } else {
+    if (!input) { setErr("mgrErr", "请先填写导入内容"); return; }
+    if (mode === "mnemonic") {
+      body.mnemonic = input;
+      body.count = Math.min(1000, Math.max(1, Number($("mgrCount").value) || 1));
+      body.startIndex = Math.max(0, Number($("cfgStartIndex").value) || 0);
+    } else if (mode === "privateKeys") body.privateKeys = input;
+    else body.text = input;
+  }
   try {
     const data = await api("/api/wallets/import", body);
     managedWallets = data.wallets.map((w) => ({ address: w.address, label: w.label ?? "", hasKey: !!w.privateKey, privateKey: w.privateKey || null, balance: null }));
@@ -770,6 +791,7 @@ function conConfig() {
     chainId: Number($("cfgChainId").value) || 56,
     count: Math.min(1000, Math.max(1, Number($("conCount").value) || 1)),
     startIndex: Math.max(0, Number($("conStartIndex").value) || 0),
+    token: $("conToken").value.trim() || undefined,
   };
   if (cfg.source === "mnemonic") cfg.mnemonic = $("conInput").value.trim();
   else if (cfg.source === "privateKeys") cfg.privateKeys = $("conInput").value.trim();
@@ -783,6 +805,21 @@ function conConfig() {
   return cfg;
 }
 
+let conSymTimer = null;
+$("conToken").addEventListener("input", () => {
+  clearTimeout(conSymTimer);
+  conSymTimer = setTimeout(async () => {
+    const addr = $("conToken").value.trim();
+    const sp = $("conTokenSym");
+    if (!ethers.isAddress(addr)) { sp.textContent = ""; return; }
+    sp.textContent = "查询中…";
+    try {
+      const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
+      const info = await window.EngineLib.getTokenInfo(engine, addr);
+      sp.textContent = info.symbol ? "币种: " + info.symbol : "";
+    } catch (e2) { sp.textContent = ""; }
+  }, 700);
+});
 $("btnConPreview").addEventListener("click", async () => {
   setErr("conErr", "");
   const cfg = conConfig();
@@ -792,9 +829,10 @@ $("btnConPreview").addEventListener("click", async () => {
     const data = await api("/api/consolidate/preview", cfg);
     conPlan = data;
     $("conPreviewBox").hidden = false;
-    $("conSummary").textContent = `共 ${data.plan.length} 个源钱包, 可归集 ${data.okCount} 个, 合计 ${data.total} BNB (目标: ${data.target})`;
+    const unit = data.isToken ? (data.symbol || "代币") : "BNB";
+    $("conSummary").textContent = `共 ${data.plan.length} 个源钱包, 可归集 ${data.okCount} 个, 合计 ${data.total} ${unit} (目标: ${data.target})`;
     $("conTable").innerHTML = `
-      <thead><tr><th>源地址</th><th>余额 BNB</th><th>手续费 ~BNB</th><th>归集金额 BNB</th><th>状态</th></tr></thead>
+      <thead><tr><th>源地址</th><th>余额 ${unit}</th><th>手续费</th><th>归集金额 ${unit}</th><th>状态</th></tr></thead>
       <tbody>${data.plan.map((p) => `
         <tr>
           <td class="mono">${esc(p.address)}</td>
@@ -811,7 +849,8 @@ $("btnConSend").addEventListener("click", async () => {
   setErr("conErr", "");
   const cfg = conConfig();
   if (!cfg.target || !/^0x[a-fA-F0-9]{40}$/.test(cfg.target)) { setErr("conErr", "目标地址无效"); return; }
-  if (!confirm(`即将把源钱包的 BNB 归集到:\n${cfg.target}\n\n请确认: 目标地址正确、源钱包私钥已导入、链(chainId=${cfg.chainId})正确。\n\n继续吗?`)) return;
+  const conUnit = cfg.token ? ($("conTokenSym").textContent.replace("币种: ", "").trim() || "代币") : "BNB";
+  if (!confirm(`即将把源钱包的 ${conUnit} 归集到:\n${cfg.target}\n\n请确认: 目标地址正确、源钱包私钥已导入、链(chainId=${cfg.chainId})正确。\n\n继续吗?`)) return;
   try {
     $("btnConSend").disabled = true;
     const data = await api("/api/consolidate/send", cfg);
@@ -838,7 +877,7 @@ async function pollConJob() {
       $("conResultTable").innerHTML = `
         <thead><tr><th>源地址</th><th>目标</th><th>金额</th><th>状态</th><th>Tx Hash</th><th>错误</th></tr></thead>
         <tbody>${data.results.map((r) => `
-          <tr><td class="mono">${esc(r.from)}</td><td class="mono">${esc(r.to)}</td><td>${r.amount}</td>
+          <tr><td class="mono">${esc(r.from)}</td><td class="mono">${esc(r.to)}</td><td>${r.amount}${r.symbol ? " " + esc(r.symbol) : ""}</td>
           <td class="${r.status === "ok" ? "status-ok" : "status-failed"}">${r.status === "ok" ? "成功" : "失败"}</td>
           <td class="mono">${r.txHash ? esc(r.txHash) : ""}</td><td>${esc(r.error)}</td></tr>`).join("")}</tbody>`;
       window._lastConResults = data.results;
