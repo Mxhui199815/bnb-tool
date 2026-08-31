@@ -14,8 +14,8 @@ function readConfig() {
   const cfg = {
     rpc: $("cfgRpc").value.trim() || undefined,
     chainId: Number($("cfgChainId").value) || 56,
-    senders: Math.max(1, Number($("cfgSenders").value) || 1),
-    startIndex: Math.max(0, Number($("cfgStartIndex").value) || 0),
+    senders: 1,
+    startIndex: 0,
     maxGasPrice: Number($("cfgMaxGas").value) || 10,
     confirmations: Math.max(0, Number($("cfgConfirmations").value) || 0),
     feeMode: $("cfgFeeMode").value,
@@ -132,6 +132,35 @@ $("btnBatchAmount").addEventListener("click", () => {
   flashMsg("listErr", `✅ 已把 ${targets.length} 行的金额批量填为 ${v} BNB`, true);
 });
 
+$("batchPctBox").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-pct]");
+  if (!btn) return;
+  const pct = Number(btn.dataset.pct) / 100;
+  try {
+    const cfg = readConfig();
+    if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) { setErr("listErr", "请先填写发送钱包(助记词/私钥)"); return; }
+    const engine = new window.EngineLib.TransferEngine({ rpc: cfg.rpc, chainId: cfg.chainId, maxGasPrice: 10, feeMode: "legacy" });
+    const secrets = { mnemonic: cfg.mnemonic, privateKeys: cfg.privateKeys };
+    const senders = window.EngineLib.buildSenders(secrets, { senders: 1, startIndex: 0 });
+    const addr = senders[0].address;
+    let amt;
+    if (cfg.token) {
+      const info = await window.EngineLib.getTokenInfo(engine, cfg.token);
+      const tokenIface = new ethers.Interface(window.EngineLib.TOKEN_ABI);
+      const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
+      const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: cfg.token, data: balData }), "查询代币余额")))[0]);
+      amt = Number(ethers.formatUnits(bal, info.decimals)) * pct;
+    } else {
+      const bal = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额");
+      amt = Number(ethers.formatEther(bal)) * pct;
+    }
+    const amtStr = trimNum(amt);
+    if (amtStr === "") { setErr("listErr", "钱包余额为 0, 无法按比例填写"); return; }
+    $("batchAmount").value = amtStr;
+    flashMsg("listErr", "✅ 已按 " + btn.dataset.pct + "% 填入每笔数量 " + amtStr, true);
+  } catch (e2) { setErr("listErr", "查询余额失败: " + (e2?.message || e2)); }
+});
+
 /* 接收名单: 从管理列表勾选添加接收人 */
 function renderTransferRecv() {
   const box = $("transferRecvBox");
@@ -142,12 +171,14 @@ function renderTransferRecv() {
   $("transferRecvHint").textContent = `共 ${managedWallets.length} 个管理钱包, 勾选后加入接收名单`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:58px"><input type="checkbox" id="transferRecvAll" checked title="全选"></th>
+      <th style="width:34px"><input type="checkbox" id="transferRecvAll" checked title="全选"></th>
+      <th>#</th>
       <th>地址</th><th>标签</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><input type="checkbox" class="recv-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
+        <td><input type="checkbox" class="recv-check" data-i="${i}" checked></td>
+        <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
       </tr>`).join("")}</tbody>`;
@@ -229,12 +260,14 @@ function renderTransferManaged() {
   $("transferManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可作发送方; 勾选后作为可用发送钱包(轮询)`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:58px"><input type="checkbox" id="transferManagedAll" checked title="全选"></th>
+      <th style="width:34px"><input type="checkbox" id="transferManagedAll" checked title="全选"></th>
+      <th>#</th>
       <th>地址</th><th>标签</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><input type="checkbox" class="transfer-managed-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
+        <td><input type="checkbox" class="transfer-managed-check" data-i="${i}" checked></td>
+        <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -500,12 +533,14 @@ $("btnGen").addEventListener("click", async () => {
 function renderGenTable() {
   $("genTable").innerHTML = `
     <thead><tr>
-      <th style="width:58px"><input type="checkbox" id="genSelectAll" title="全选"></th>
+      <th style="width:34px"><input type="checkbox" id="genSelectAll" title="全选"></th>
+      <th>#</th>
       <th>地址</th><th>私钥</th><th>操作</th>
     </tr></thead>
     <tbody>${genState.wallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><input type="checkbox" class="gen-check" data-i="${i}"><span class="row-idx">${w.index}.</span></td>
+        <td><input type="checkbox" class="gen-check" data-i="${i}"></td>
+        <td class="row-num">${w.index}</td>
         <td class="mono">${esc(w.address)}</td>
         <td class="mono" id="genkey-${i}">${esc(maskKey(w.privateKey))}</td>
         <td>
@@ -631,10 +666,11 @@ function renderMgrTable() {
   $("listManagedHint").textContent = managedWallets.length ? `管理列表共 ${managedWallets.length} 个钱包, 可在转账页勾选加入接收名单` : "";
   if (!managedWallets.length) { tb.innerHTML = ""; return; }
   tb.innerHTML = `
-    <thead><tr><th style="width:58px"><input type="checkbox" id="mgrSelectAll" title="全选"></th><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
+    <thead><tr><th style="width:34px"><input type="checkbox" id="mgrSelectAll" title="全选"></th><th>#</th><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><input type="checkbox" class="mgr-check" data-i="${i}"><span class="row-idx">${i + 1}.</span></td>
+        <td><input type="checkbox" class="mgr-check" data-i="${i}"></td>
+        <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td><input data-mlabel="${i}" value="${esc(w.label)}"></td>
         <td class="mono">${w.balance != null ? esc(w.balance) : "—"}</td>
@@ -663,7 +699,7 @@ $("btnMgrImport").addEventListener("click", async () => {
     if (mode === "mnemonic") {
       body.mnemonic = input;
       body.count = Math.min(1000, Math.max(1, Number($("mgrCount").value) || 1));
-      body.startIndex = Math.max(0, Number($("cfgStartIndex").value) || 0);
+      body.startIndex = 0;
     } else if (mode === "privateKeys") body.privateKeys = input;
     else body.text = input;
   }
@@ -790,12 +826,14 @@ function renderConManaged() {
   $("conManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可归集; 无私钥的只能查余额`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:58px"><input type="checkbox" id="conManagedAll" checked title="全选"></th>
+      <th style="width:34px"><input type="checkbox" id="conManagedAll" checked title="全选"></th>
+      <th>#</th>
       <th>地址</th><th>标签</th><th>可归集</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><input type="checkbox" class="con-managed-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
+        <td><input type="checkbox" class="con-managed-check" data-i="${i}" checked></td>
+        <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -808,6 +846,13 @@ $("conManagedTable").addEventListener("change", (e) => {
   }
 });
 
+$("conPctBox").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-pct]");
+  if (!btn) return;
+  $("conPct").value = btn.dataset.pct;
+  [...$("conPctBox").querySelectorAll("button")].forEach((b) => b.style.outline = b === btn ? "2px solid #22c55e" : "");
+});
+
 function conConfig() {
   const cfg = {
     source: $("conSource").value,
@@ -817,6 +862,7 @@ function conConfig() {
     count: Math.min(1000, Math.max(1, Number($("conCount").value) || 1)),
     startIndex: Math.max(0, Number($("conStartIndex").value) || 0),
     token: $("conToken").value.trim() || undefined,
+    pct: Number($("conPct").value) || 100,
   };
   if (cfg.source === "mnemonic") cfg.mnemonic = $("conInput").value.trim();
   else if (cfg.source === "privateKeys") cfg.privateKeys = $("conInput").value.trim();
@@ -962,12 +1008,14 @@ function renderSwapManaged() {
   $("swapManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可作发送方; 勾选后自动作为可用发送钱包(轮询)`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:58px"><input type="checkbox" id="swapManagedAll" checked title="全选"></th>
+      <th style="width:34px"><input type="checkbox" id="swapManagedAll" checked title="全选"></th>
+      <th>#</th>
       <th>地址</th><th>标签</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><input type="checkbox" class="swap-managed-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
+        <td><input type="checkbox" class="swap-managed-check" data-i="${i}" checked></td>
+        <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -1005,7 +1053,7 @@ function readSwapConfig() {
     rpc: $("cfgRpc").value.trim() || undefined,
     chainId: Number($("cfgChainId").value) || 56,
     senders: 1,
-    startIndex: Math.max(0, Number($("cfgStartIndex").value) || 0),
+    startIndex: 0,
     slippage: Number($("swapSlippage").value) || 1,
     items: [{ row: 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: -1 }],
   };
@@ -1042,7 +1090,7 @@ $("swapTokenAddr").addEventListener("input", () => {
 /* 交易百分比: 按余额比例自动填金额/数量 */
 function swapWalletOnlyCfg() {
   const t = $("swapWalletType").value;
-  const cfg = { rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, senders: 1, startIndex: Math.max(0, Number($("cfgStartIndex").value) || 0) };
+  const cfg = { rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, senders: 1, startIndex: 0 };
   if (t === "mnemonic") cfg.mnemonic = $("swapWalletInput").value.trim();
   else if (t === "privateKeys") cfg.privateKeys = $("swapWalletInput").value.trim();
   else if (t === "secretsFile") cfg.secretsJson = window._swapSecretsJson;
@@ -1239,7 +1287,7 @@ function airConfig() {
     rpc: $("cfgRpc").value.trim() || undefined,
     chainId: Number($("cfgChainId").value) || 56,
     senders: 1,
-    startIndex: Math.max(0, Number($("cfgStartIndex").value) || 0),
+    startIndex: 0,
     token: $("airdropToken").value.trim() || undefined,
     items: [],
   };
