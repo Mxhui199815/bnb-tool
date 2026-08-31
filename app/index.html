@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831m">
+<link rel="stylesheet" href="style.css?v=20260831n">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -77,15 +77,15 @@
 
 <section class="card">
       <h2>转账参数</h2>
+      <div class="row">
+        <label>合约地址(选填, 留空转 BNB) <input type="text" id="cfgToken" placeholder="0x… 如 USDT 合约地址"><span id="cfgTokenSym" class="token-sym"></span></label>
+      </div>
       <div class="grid2">
-        <label>发送钱包数 <input type="number" id="cfgSenders" value="1" min="1"></label>
-        <label>助记词起始序号 <input type="number" id="cfgStartIndex" value="0" min="0"></label>
         <label>Gas 费上限 (gwei) <input type="number" id="cfgMaxGas" value="10" min="1" step="0.1"></label>
         <label>等待确认数 <input type="number" id="cfgConfirmations" value="1" min="0"></label>
         <label>费用模式
           <select id="cfgFeeMode"><option value="legacy">legacy (推荐)</option><option value="eip1559">eip1559</option></select>
         </label>
-        <label>代币地址(选填, 留空转 BNB) <input type="text" id="cfgToken" placeholder="0x… 如 USDT 合约地址"><span id="cfgTokenSym" class="hint"></span></label>
         <label class="check"><input type="checkbox" id="cfgSkipBalance"> 跳过余额检查(不推荐)</label>
       </div>
     </section>
@@ -105,7 +105,13 @@
 <div class="row batch-amount-row">
   <label>每笔数量 <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001" class="batch-amount-input"></label>
   <button id="btnBatchAmount" class="btn ghost">📝 批量填入全部行</button>
-  <span class="hint">给所有已填地址的行统一填写金额</span>
+  <span id="batchPctBox" class="pct-box">
+    <button type="button" class="btn ghost" data-pct="25">25%</button>
+    <button type="button" class="btn ghost" data-pct="50">50%</button>
+    <button type="button" class="btn ghost" data-pct="75">75%</button>
+    <button type="button" class="btn ghost" data-pct="100">100%</button>
+  </span>
+  <span class="hint">按发送钱包余额比例填每笔数量</span>
 </div>
       <div id="transferRecvBox" class="manage-picker" hidden>
         <h3>📋 管理列表 · 选择接收人（勾选后加入接收名单）</h3>
@@ -240,8 +246,10 @@
           <textarea id="airdropAddrs" rows="8" placeholder="0x1111…&#10;0x2222…&#10;0x3333…"></textarea>
         </label>
       </div>
+      <div class="row">
+        <label>合约地址(选填, 留空空投 BNB) <input type="text" id="airdropToken" placeholder="0x… 如 USDT"><span id="airdropTokenSym" class="token-sym"></span></label>
+      </div>
       <div class="grid2">
-        <label>合约地址(选填, 留空空投 BNB) <input type="text" id="airdropToken" placeholder="0x… 如 USDT"><span id="airdropTokenSym" class="hint"></span></label>
         <label>每笔数量 <input type="number" id="airdropAmount" value="0.01" min="0" step="0.00000001"></label>
       </div>
     </section>
@@ -271,12 +279,14 @@
   <div class="page" id="page-swap">
     <section class="card">
       <h2>交易参数与合约</h2>
+      <div class="row">
+        <label>合约地址(代币, 输入后自动显示币名) <input type="text" id="swapTokenAddr" placeholder="0x…"><span id="swapTokenName" class="token-sym"></span></label>
+      </div>
       <div class="grid2">
         <label>默认滑点 % <input type="number" id="swapSlippage" value="1" min="0" max="50" step="0.1"></label>
         <label>方向
           <select id="swapDirection"><option value="buy" selected>买 (用 BNB 买代币)</option><option value="sell">卖 (卖代币换 BNB)</option></select>
         </label>
-        <label>合约地址(代币, 输入后自动显示币名) <input type="text" id="swapTokenAddr" placeholder="0x…"><span id="swapTokenName" class="hint"></span></label>
         <label>交易金额 BNB (买) <input type="number" id="swapTokenAmount" min="0" step="0.00000001"></label>
         <label>交易数量 代币 (卖) <input type="number" id="swapTokenQty" min="0" step="0.00000001"></label>
         <label>交易百分比
@@ -351,7 +361,16 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
           </select>
         </label>
         <label>目标地址 <input type="text" id="conTarget" placeholder="0x… 归集目标地址"></label>
-        <label>代币地址(选填, 留空归集 BNB) <input type="text" id="conToken" placeholder="0x… 如 USDT 合约地址"><span id="conTokenSym" class="hint"></span></label>
+        <label>归集比例
+          <span id="conPctBox" class="pct-box">
+            <button type="button" class="btn ghost" data-pct="25">25%</button>
+            <button type="button" class="btn ghost" data-pct="50">50%</button>
+            <button type="button" class="btn ghost" data-pct="75">75%</button>
+            <button type="button" class="btn ghost" data-pct="100">100%</button>
+          </span>
+          <input type="hidden" id="conPct" value="100">
+        </label>
+        <label>代币地址(选填, 留空归集 BNB) <input type="text" id="conToken" placeholder="0x… 如 USDT 合约地址"><span id="conTokenSym" class="token-sym"></span></label>
         <label>数量 <input type="number" id="conCount" value="10" min="1" max="1000"></label>
         <label>起始序号 <input type="number" id="conStartIndex" value="0" min="0"></label>
       </div>
@@ -384,11 +403,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831m"></script>
-<script src="vendor/exceljs.min.js?v=20260831m"></script>
-<script src="engine.js?v=20260831m"></script>
-<script src="license.js?v=20260831m"></script>
-<script src="webapi.js?v=20260831m"></script>
-<script src="app.js?v=20260831m"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831n"></script>
+<script src="vendor/exceljs.min.js?v=20260831n"></script>
+<script src="engine.js?v=20260831n"></script>
+<script src="license.js?v=20260831n"></script>
+<script src="webapi.js?v=20260831n"></script>
+<script src="app.js?v=20260831n"></script>
 </body>
 </html>
