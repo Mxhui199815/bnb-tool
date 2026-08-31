@@ -872,6 +872,7 @@ renderItems();
 // 默认「管理列表」置顶, 触发一次切换让界面正确显示
 $("walletType").dispatchEvent(new Event("change"));
 $("swapWalletType").dispatchEvent(new Event("change"));
+$("conSource").dispatchEvent(new Event("change"));
 
 /* ============ 薄饼交易 (PancakeSwap 批量买卖) ============ */
 let swapItems = [];
