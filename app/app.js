@@ -20,6 +20,7 @@ function readConfig() {
     confirmations: Math.max(0, Number($("cfgConfirmations").value) || 0),
     feeMode: $("cfgFeeMode").value,
     skipBalanceCheck: $("cfgSkipBalance").checked,
+    token: $("cfgToken").value.trim() || undefined,
     items,
   };
   if (walletType === "mnemonic") cfg.mnemonic = $("walletInput").value.trim();
@@ -108,6 +109,7 @@ $("btnCheckBalances").addEventListener("click", async () => {
       rpc: $("cfgRpc").value.trim() || undefined,
       chainId: Number($("cfgChainId").value) || 56,
       addresses: addrs,
+      token: $("cfgToken").value.trim() || undefined,
     });
     const map = {};
     for (const b of data.balances) map[b.address.toLowerCase()] = b.balance;
@@ -266,6 +268,23 @@ $("secretsFile").addEventListener("change", async (e) => {
     $("walletInput").hidden = true;
     $("btnSecretsFile").textContent = `已选择 ${f.name} (点击更换)`;
   } catch (err) { setErr("walletErr", err.message); }
+});
+
+/* ---------------- 代币币名识别 ---------------- */
+let cfgTokenSymTimer = null;
+$("cfgToken").addEventListener("input", () => {
+  clearTimeout(cfgTokenSymTimer);
+  cfgTokenSymTimer = setTimeout(async () => {
+    const addr = $("cfgToken").value.trim();
+    const sp = $("cfgTokenSym");
+    if (!ethers.isAddress(addr)) { sp.textContent = ""; return; }
+    sp.textContent = "查询中…";
+    try {
+      const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
+      const info = await window.EngineLib.getTokenInfo(engine, addr);
+      sp.textContent = info.symbol ? "币种: " + info.symbol : "";
+    } catch (e2) { sp.textContent = ""; }
+  }, 700);
 });
 
 /* ---------------- 干跑检查 ---------------- */
@@ -717,7 +736,7 @@ $("mgrTable").addEventListener("change", async (e) => {
 loadManaged();
 
 /* ============ 导航路由 ============ */
-const PAGES = ["create", "manage", "transfer", "consolidate", "swap"];
+const PAGES = ["create", "manage", "transfer", "consolidate", "airdrop", "swap"];
 function route() {
   const h = (location.hash || "#/transfer").replace(/^#\/?/, "");
   const page = PAGES.includes(h) ? h : "transfer";
@@ -1119,6 +1138,31 @@ function readSwapConfig() {
   return cfg;
 }
 
+/* 顶部合约地址/金额: 自动应用到全部行 */
+let swapTopSymTimer = null;
+$("swapTokenAddr").addEventListener("input", () => {
+  clearTimeout(swapTopSymTimer);
+  swapTopSymTimer = setTimeout(async () => {
+    const addr = $("swapTokenAddr").value.trim();
+    const sp = $("swapTokenName");
+    if (!ethers.isAddress(addr)) { sp.textContent = ""; return; }
+    sp.textContent = "查询中…";
+    try {
+      const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
+      const info = await window.EngineLib.getTokenInfo(engine, addr);
+      sp.textContent = info.symbol ? "币种: " + info.symbol : "";
+      for (const it of swapItems) it.token = addr;
+      if (swapItems.length) renderSwapTable();
+    } catch (e2) { sp.textContent = ""; }
+  }, 700);
+});
+$("swapTokenAmount").addEventListener("input", () => {
+  const v = $("swapTokenAmount").value.trim();
+  if (v === "" || isNaN(Number(v))) return;
+  for (const it of swapItems) it.amount = v;
+  if (swapItems.length) renderSwapTable();
+});
+
 /* 检查与执行 */
 $("swapBtnPreview").addEventListener("click", async () => {
   setErr("swapErr", "");
@@ -1221,6 +1265,129 @@ renderItems();
 // 默认「管理列表」置顶, 触发一次切换让界面正确显示
 $("walletType").dispatchEvent(new Event("change"));
 $("swapWalletType").dispatchEvent(new Event("change"));
+
+/* ============ 🎁 批量空投 ============ */
+let airdropJobId = null;
+let airdropPollTimer = null;
+let airTokenSymTimer = null;
+
+$("airdropWalletType").addEventListener("change", () => {
+  $("airdropWalletInput").placeholder = $("airdropWalletType").value === "mnemonic" ? "粘贴 12/24 个助记词单词…" : "粘贴私钥, 逗号分隔, 如: 0x…,0x…";
+});
+$("airdropToken").addEventListener("input", () => {
+  clearTimeout(airTokenSymTimer);
+  airTokenSymTimer = setTimeout(async () => {
+    const addr = $("airdropToken").value.trim();
+    const sp = $("airdropTokenSym");
+    if (!ethers.isAddress(addr)) { sp.textContent = ""; return; }
+    sp.textContent = "查询中…";
+    try {
+      const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
+      const info = await window.EngineLib.getTokenInfo(engine, addr);
+      sp.textContent = info.symbol ? "币种: " + info.symbol : "";
+    } catch (e2) { sp.textContent = ""; }
+  }, 700);
+});
+
+function airReadAddrs() {
+  const lines = $("airdropAddrs").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (!lines.length) throw new Error("请先粘贴接收地址(每行一个)");
+  const seen = new Set();
+  const addrs = [];
+  for (const l of lines) {
+    if (!ethers.isAddress(l)) throw new Error("地址无效: " + l);
+    const a = ethers.getAddress(l);
+    if (!seen.has(a)) { seen.add(a); addrs.push(a); }
+  }
+  return addrs;
+}
+
+function airConfig() {
+  const t = $("airdropWalletType").value;
+  const cfg = {
+    rpc: $("cfgRpc").value.trim() || undefined,
+    chainId: Number($("cfgChainId").value) || 56,
+    senders: 1,
+    startIndex: Math.max(0, Number($("cfgStartIndex").value) || 0),
+    token: $("airdropToken").value.trim() || undefined,
+    items: [],
+  };
+  if (t === "mnemonic") cfg.mnemonic = $("airdropWalletInput").value.trim();
+  else cfg.privateKeys = $("airdropWalletInput").value.trim();
+  if (!cfg.mnemonic && !cfg.privateKeys) throw new Error("请填写空投钱包(助记词/私钥)");
+  const amount = Number($("airdropAmount").value);
+  if (!(amount > 0)) throw new Error("每笔金额必须大于 0");
+  const addrs = airReadAddrs();
+  cfg.items = addrs.map((a, i) => ({ row: i + 1, to: a, amount: amount, remark: "", walletIndex: -1 }));
+  return cfg;
+}
+
+$("airdropPreview").addEventListener("click", async () => {
+  setErr("airdropErr", "");
+  try {
+    const cfg = airConfig();
+    $("airdropPreview").disabled = true;
+    $("airdropPreview").textContent = "检查中…";
+    const data = await api("/api/preview", cfg);
+    $("airdropPreviewBox").hidden = false;
+    $("airdropCount").textContent = cfg.items.length;
+    $("airdropWalletCards").innerHTML = data.wallets.map((w) => '<div class="wallet-card"><div class="addr">#' + w.index + " " + w.address + "</div></div>").join("");
+    $("airdropBalanceErr").textContent = data.balanceOk ? "" : "⚠️ 存在余额不足或查询失败, 请充值后再空投。" + (data.balanceError ? "\n" + data.balanceError : "");
+  } catch (e) { setErr("airdropErr", e.message); }
+  finally { $("airdropPreview").disabled = false; $("airdropPreview").textContent = "🔍 干跑检查"; }
+});
+
+$("airdropSend").addEventListener("click", async () => {
+  setErr("airdropErr", "");
+  let cfg;
+  try { cfg = airConfig(); } catch (e) { setErr("airdropErr", e.message); return; }
+  const unit = cfg.token ? ($("airdropTokenSym").textContent.replace("币种: ", "").trim() || "代币") : "BNB";
+  if (!confirm("即将向 " + cfg.items.length + " 个地址空投 " + cfg.items[0].amount + " " + unit + "\n\n请确认: 地址列表、金额、代币(如有)、发送钱包、链(chainId=" + cfg.chainId + ")正确。\n\n继续吗?")) return;
+  try {
+    $("airdropSend").disabled = true;
+    const data = await api("/api/send", cfg);
+    airdropJobId = data.jobId;
+    $("airdropSendBox").hidden = false;
+    $("airdropLogBox").textContent = "任务已创建, 等待执行…";
+    $("airdropProgressText").textContent = "0%";
+    $("airdropProgressBar").style.width = "0%";
+    $("airdropResultTable").innerHTML = "";
+    $("airdropDownload").hidden = true;
+    airdropPollTimer = setInterval(pollAirdropJob, 1000);
+  } catch (e) { setErr("airdropErr", e.message); $("airdropSend").disabled = false; }
+});
+
+async function pollAirdropJob() {
+  if (!airdropJobId) return;
+  try {
+    const data = await (await fetch("/api/job/" + airdropJobId)).json();
+    if (data.logs && data.logs.length) $("airdropLogBox").textContent = data.logs.join("\n");
+    const pct = data.total ? Math.round((data.done / data.total) * 100) : 0;
+    $("airdropProgressText").textContent = data.done + "/" + data.total + " (" + pct + "%)";
+    $("airdropProgressBar").style.width = pct + "%";
+    if (data.results && data.results.length) {
+      $("airdropResultTable").innerHTML = "<thead><tr><th>接收地址</th><th>金额</th><th>状态</th><th>Tx Hash</th><th>错误</th></tr></thead><tbody>" + data.results.map((r) => "<tr><td class=\"mono\">" + esc(r.to) + "</td><td>" + esc(r.amount) + (r.symbol ? " " + esc(r.symbol) : "") + "</td><td class=\"" + (r.status === "ok" ? "status-ok\">成功" : "status-failed\">失败") + "</td><td class=\"mono\">" + (r.txHash ? esc(r.txHash.slice(0, 18)) + "…" : "") + "</td><td>" + esc(r.error) + "</td></tr>").join("") + "</tbody>";
+      window._lastAirdropResults = data.results;
+    }
+    if (data.status === "done" || data.status === "failed") {
+      clearInterval(airdropPollTimer);
+      $("airdropSend").disabled = false;
+      if (data.status === "failed") setErr("airdropErr", "空投失败: " + data.error);
+      else {
+        const okCount = data.results.filter((r) => r.status === "ok").length;
+        setErr("airdropErr", okCount === data.results.length ? "✅ 空投完成: " + okCount + " 笔成功" : "⚠️ 空投完成: " + okCount + "/" + data.results.length + " 成功, 请核对失败项");
+        $("airdropDownload").hidden = data.results.length === 0;
+      }
+    }
+  } catch (e) {}
+}
+
+$("airdropDownload").addEventListener("click", () => {
+  const rows = window._lastAirdropResults || [];
+  const lines = ["to,amount,status,tx_hash,error"];
+  for (const r of rows) lines.push(r.to + "," + r.amount + "," + r.status + "," + (r.txHash || "") + "," + csv(r.error));
+  downloadCsv(lines.join("\n"), "airdrop-results.csv");
+});
 
 /* ============ 会员登录 ============ */
 let licenseInfo = null;
