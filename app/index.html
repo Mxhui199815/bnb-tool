@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831p">
+<link rel="stylesheet" href="style.css?v=20260831q">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -96,7 +96,13 @@
         <label class="check"><input type="checkbox" id="cfgSkipBalance"> 跳过余额检查(不推荐)</label>
       </div>
       <div class="row">
-        <label>每笔数量 <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001"></label>
+        <label>每笔数量 (代币合约代币) <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001"></label>
+        <span id="transferPctBox" class="pct-box">
+          <button type="button" class="btn ghost" data-pct="25">25%</button>
+          <button type="button" class="btn ghost" data-pct="50">50%</button>
+          <button type="button" class="btn ghost" data-pct="75">75%</button>
+          <button type="button" class="btn ghost" data-pct="100">100%</button>
+        </span>
         <button id="btnBatchAmount" class="btn ghost">📝 批量填入全部行</button>
       </div>
     </section>
@@ -409,11 +415,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831p"></script>
-<script src="vendor/exceljs.min.js?v=20260831p"></script>
-<script src="engine.js?v=20260831p"></script>
-<script src="license.js?v=20260831p"></script>
-<script src="webapi.js?v=20260831p"></script>
-<script src="app.js?v=20260831p"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831q"></script>
+<script src="vendor/exceljs.min.js?v=20260831q"></script>
+<script src="engine.js?v=20260831q"></script>
+<script src="license.js?v=20260831q"></script>
+<script src="webapi.js?v=20260831q"></script>
+<script src="app.js?v=20260831q"></script>
 </body>
 </html>
