@@ -1098,7 +1098,7 @@ async function swapQuote(token, qty, cfg, isBuy) {
   const router = window.EngineLib.getRouterAddress({ chainId: cfg.chainId });
   const routerIface = new ethers.Interface(window.EngineLib.ROUTER_ABI);
   const qtyWei = ethers.parseUnits(String(qty), info.decimals);
-  const path = isBuy ? [window.EngineLib.WBNB, token] : [token, window.EngineLib.WBNB];
+  const path = isBuy ? [window.EngineLib.getWBNB(cfg.chainId), token] : [token, window.EngineLib.getWBNB(cfg.chainId)];
   const method = isBuy ? "getAmountsIn" : "getAmountsOut";
   const data = routerIface.encodeFunctionData(method, [qtyWei, path]);
   const ret = await engine.call((p) => p.call({ to: router, data }), "查询价格");
