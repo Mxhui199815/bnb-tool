@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831o">
+<link rel="stylesheet" href="style.css?v=20260831p">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -82,11 +82,22 @@
       </div>
       <div class="grid2">
         <label>Gas 费上限 (gwei) <input type="number" id="cfgMaxGas" value="10" min="1" step="0.1"></label>
+        <label>Gas 速度
+          <select id="cfgGasSpeed">
+            <option value="slow">慢 (省钱)</option>
+            <option value="normal" selected>推荐</option>
+            <option value="fast">快 (优先确认)</option>
+          </select>
+        </label>
         <label>等待确认数 <input type="number" id="cfgConfirmations" value="1" min="0"></label>
         <label>费用模式
           <select id="cfgFeeMode"><option value="legacy">legacy (推荐)</option><option value="eip1559">eip1559</option></select>
         </label>
         <label class="check"><input type="checkbox" id="cfgSkipBalance"> 跳过余额检查(不推荐)</label>
+      </div>
+      <div class="row">
+        <label>每笔数量 <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001"></label>
+        <button id="btnBatchAmount" class="btn ghost">📝 批量填入全部行</button>
       </div>
     </section>
 
@@ -101,17 +112,6 @@
   <button id="btnAddRow" class="btn ghost" hidden>＋ 添加一行</button>
   <button id="btnCheckBalances" class="btn ghost" hidden>🔍 查询接收人余额</button>
   <span class="hint" id="listManagedHint"></span>
-</div>
-<div class="row batch-amount-row">
-  <label>每笔数量 <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001" class="batch-amount-input"></label>
-  <span id="batchPctBox" class="pct-box">
-    <button type="button" class="btn ghost" data-pct="25">25%</button>
-    <button type="button" class="btn ghost" data-pct="50">50%</button>
-    <button type="button" class="btn ghost" data-pct="75">75%</button>
-    <button type="button" class="btn ghost" data-pct="100">100%</button>
-  </span>
-  <button id="btnBatchAmount" class="btn ghost">📝 批量填入全部行</button>
-  <span class="hint">按发送钱包余额比例填每笔数量</span>
 </div>
       <div id="transferRecvBox" class="manage-picker" hidden>
         <h3>📋 管理列表 · 选择接收人（勾选后加入接收名单）</h3>
@@ -409,11 +409,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831o"></script>
-<script src="vendor/exceljs.min.js?v=20260831o"></script>
-<script src="engine.js?v=20260831o"></script>
-<script src="license.js?v=20260831o"></script>
-<script src="webapi.js?v=20260831o"></script>
-<script src="app.js?v=20260831o"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831p"></script>
+<script src="vendor/exceljs.min.js?v=20260831p"></script>
+<script src="engine.js?v=20260831p"></script>
+<script src="license.js?v=20260831p"></script>
+<script src="webapi.js?v=20260831p"></script>
+<script src="app.js?v=20260831p"></script>
 </body>
 </html>
