@@ -15,7 +15,7 @@ function readConfig() {
   const cfg = {
     rpc: $("cfgRpc").value.trim() || undefined,
     chainId: Number($("cfgChainId").value) || 56,
-    senders: keys.length,
+    senders: 1,
     startIndex: 0,
     maxGasPrice: Number($("cfgMaxGas").value) || 10,
     confirmations: Math.max(0, Number($("cfgConfirmations").value) || 0),
