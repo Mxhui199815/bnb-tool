@@ -147,3 +147,7 @@ nav a.active { background: #0e7490; border-color: #22d3ee; color: #fff; }
 
 .cell-check { white-space: nowrap; }
 .row-idx { color: #7dd3fc; font-size: 12px; margin-right: 4px; }
+
+.row-num { color: #7dd3fc; font-size: 13px; text-align: center; }
+.token-sym, #cfgTokenSym, #airdropTokenSym, #swapTokenName, #conTokenSym { color: #22d3ee; font-weight: 700; margin-left: 6px; text-shadow: 0 0 6px rgba(34,211,238,0.35); }
+.pct-box button { margin-right: 4px; padding: 5px 10px; font-size: 13px; }
