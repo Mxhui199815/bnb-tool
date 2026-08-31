@@ -147,7 +147,7 @@ function renderTransferRecv() {
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="recv-check" data-i="${i}" checked></td>
+        <td class="cell-check"><input type="checkbox" class="recv-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
       </tr>`).join("")}</tbody>`;
@@ -205,14 +205,6 @@ $("fileInput").addEventListener("change", async (e) => {
   e.target.value = "";
 });
 
-$("btnPaste").addEventListener("click", async () => {
-  const text = $("pasteCsv").value.trim();
-  if (!text) { setErr("listErr", "请先粘贴 CSV 内容"); return; }
-  try {
-    const data = await api("/api/parse", { filename: "paste.csv", text });
-    applyParsed(data.items);
-  } catch (err) { setErr("listErr", err.message); }
-});
 
 $("walletType").addEventListener("change", () => {
   const t = $("walletType").value;
@@ -242,7 +234,7 @@ function renderTransferManaged() {
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="transfer-managed-check" data-i="${i}" checked></td>
+        <td class="cell-check"><input type="checkbox" class="transfer-managed-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -513,7 +505,7 @@ function renderGenTable() {
     </tr></thead>
     <tbody>${genState.wallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><span class="row-idx">${w.index}.</span> <input type="checkbox" class="gen-check" data-i="${i}"></td>
+        <td class="cell-check"><input type="checkbox" class="gen-check" data-i="${i}"><span class="row-idx">${w.index}.</span></td>
         <td class="mono">${esc(w.address)}</td>
         <td class="mono" id="genkey-${i}">${esc(maskKey(w.privateKey))}</td>
         <td>
@@ -639,11 +631,11 @@ function renderMgrTable() {
   $("listManagedHint").textContent = managedWallets.length ? `管理列表共 ${managedWallets.length} 个钱包, 可在转账页勾选加入接收名单` : "";
   if (!managedWallets.length) { tb.innerHTML = ""; return; }
   tb.innerHTML = `
-    <thead><tr><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
+    <thead><tr><th style="width:58px"><input type="checkbox" id="mgrSelectAll" title="全选"></th><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        
-        <td class="mono">${i + 1}. ${esc(w.address)}</td>
+        <td class="cell-check"><input type="checkbox" class="mgr-check" data-i="${i}"><span class="row-idx">${i + 1}.</span></td>
+        <td class="mono">${esc(w.address)}</td>
         <td><input data-mlabel="${i}" value="${esc(w.label)}"></td>
         <td class="mono">${w.balance != null ? esc(w.balance) : "—"}</td>
         <td>
@@ -731,6 +723,20 @@ $("mgrTable").addEventListener("change", async (e) => {
   const i = e.target.dataset.mlabel;
   if (i != null) { managedWallets[Number(i)].label = e.target.value; await saveManaged(); }
 });
+$("mgrTable").addEventListener("change", (e) => {
+  if (e.target.id === "mgrSelectAll") {
+    document.querySelectorAll(".mgr-check").forEach((c) => (c.checked = e.target.checked));
+  }
+});
+$("btnMgrRemove").addEventListener("click", async () => {
+  const checked = [...document.querySelectorAll(".mgr-check:checked")].map((c) => Number(c.dataset.i));
+  if (!checked.length) { setErr("mgrErr", "请先勾选要移除的钱包"); return; }
+  if (!confirm("确定移除选中的 " + checked.length + " 个钱包?")) return;
+  checked.sort((x, y) => y - x).forEach((i) => managedWallets.splice(i, 1));
+  await saveManaged();
+  renderMgrTable();
+  flashMsg("mgrErr", "✅ 已移除 " + checked.length + " 个钱包", true);
+});
 
 /* 启动时加载已保存的管理列表 */
 loadManaged();
@@ -789,7 +795,7 @@ function renderConManaged() {
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="con-managed-check" data-i="${i}" checked></td>
+        <td class="cell-check"><input type="checkbox" class="con-managed-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -929,132 +935,8 @@ $("swapWalletType").dispatchEvent(new Event("change"));
 $("conSource").dispatchEvent(new Event("change"));
 
 /* ============ 薄饼交易 (PancakeSwap 批量买卖) ============ */
-let swapItems = [];
 let swapJobId = null;
 let swapPollTimer = null;
-
-function renderSwapTable() {
-  const tb = $("swapBody");
-  tb.innerHTML = "";
-  let buy = 0, sell = 0;
-  swapItems.forEach((it, i) => {
-    if (it.direction === "buy") buy += Number(it.amount) || 0; else sell += Number(it.amount) || 0;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      
-      <td class="cell-token">
-        <input data-sw="${i}" data-k="token" value="${esc(it.token)}" style="min-width:260px" placeholder="0x…">
-        <span class="token-sym" data-sym="${i}">${esc(it.symbol || "")}</span>
-      </td>
-      <td><input data-sw="${i}" data-k="amount" value="${esc(it.amount)}"></td>
-      <td><select data-sw="${i}" data-k="direction">
-          <option value="buy" ${it.direction === "buy" ? "selected" : ""}>买 (BNB→Token)</option>
-          <option value="sell" ${it.direction === "sell" ? "selected" : ""}>卖 (Token→BNB)</option>
-        </select></td>
-      <td><input data-sw="${i}" data-k="slippage" value="${it.slippage == null || it.slippage === "" ? "" : esc(it.slippage)}" placeholder="默认"></td>
-      <td><input data-sw="${i}" data-k="remark" value="${esc(it.remark)}"></td>
-      <td><input data-sw="${i}" data-k="walletIndex" value="${it.walletIndex >= 0 ? it.walletIndex : ""}" placeholder="轮询"></td>
-      <td><button class="btn ghost" data-swdel="${i}">删除</button></td>`;
-    tb.appendChild(tr);
-  });
-  $("swapTable").hidden = swapItems.length === 0;
-  $("swapSummary").innerHTML = swapItems.length
-    ? `共 <b>${swapItems.length}</b> 笔: 买 <b>${fmtNum(buy)}</b> BNB / 卖 <b>${fmtNum(sell)}</b> 代币`
-    : "";
-}
-
-$("swapBody").addEventListener("input", (e) => {
-  const el = e.target, i = Number(el.dataset.sw), k = el.dataset.k;
-  if (!swapItems[i]) return;
-  if (k === "walletIndex") swapItems[i].walletIndex = el.value === "" ? -1 : Number(el.value);
-  else if (k === "amount") swapItems[i].amount = el.value;
-  else if (k === "slippage") swapItems[i].slippage = el.value === "" ? null : Number(el.value);
-  else swapItems[i][k] = el.value;
-});
-let swapSymTimer = null;
-$("swapBody").addEventListener("input", (e) => {
-  const el = e.target;
-  if (el.dataset.k !== "token") return;
-  const i = Number(el.dataset.sw);
-  clearTimeout(swapSymTimer);
-  swapSymTimer = setTimeout(async () => {
-    const addr = (el.value || "").trim();
-    const sp = document.querySelector('[data-sym="' + i + '"]');
-    if (!sp) return;
-    if (!ethers.isAddress(addr)) { sp.textContent = ""; if (swapItems[i]) swapItems[i].symbol = ""; return; }
-    sp.textContent = "查询中…";
-    try {
-      const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
-      const info = await window.EngineLib.getTokenInfo(engine, addr);
-      sp.textContent = info.symbol ? " " + info.symbol : "";
-      if (swapItems[i]) swapItems[i].symbol = info.symbol;
-    } catch (err) { sp.textContent = ""; }
-  }, 700);
-});
-$("swapBody").addEventListener("click", (e) => {
-  const i = e.target.dataset.swdel;
-  if (i != null) { swapItems.splice(Number(i), 1); swapItems.forEach((it, idx) => (it.row = idx + 1)); renderSwapTable(); }
-});
-
-$("swapBtnAdd").addEventListener("click", () => {
-  swapItems.push({ row: swapItems.length + 1, token: "", amount: "", direction: "buy", slippage: null, remark: "", walletIndex: -1, symbol: "" });
-  renderSwapTable();
-});
-$("swapBtnClear").addEventListener("click", () => {
-  if (!swapItems.length) return;
-  if (!confirm("清空交易名单?")) return;
-  swapItems = [];
-  renderSwapTable();
-});
-
-function parseClientCsv(text) {
-  text = text.replace(/^\uFEFF/, "");
-  const rows = [];
-  let row = [], field = "", inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inQ) {
-      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
-      else field += ch;
-    } else if (ch === '"') inQ = true;
-    else if (ch === ",") { row.push(field); field = ""; }
-    else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i++;
-      row.push(field); field = "";
-      if (row.some((c) => c.trim() !== "")) rows.push(row);
-      row = [];
-    } else field += ch;
-  }
-  if (field !== "" || row.length) { row.push(field); if (row.some((c) => c.trim() !== "")) rows.push(row); }
-  return rows;
-}
-
-$("swapBtnPaste").addEventListener("click", () => {
-  const text = $("swapPaste").value.trim();
-  if (!text) { setErr("swapListErr", "请先粘贴 CSV"); return; }
-  const rows = parseClientCsv(text);
-  if (!rows.length) { setErr("swapListErr", "没有解析到内容"); return; }
-  const first = rows[0].map((s) => String(s).toLowerCase());
-  let start = first.includes("token") || first.includes("address") || first.includes("代币") ? 1 : 0;
-  const items = [];
-  for (let i = start; i < rows.length; i++) {
-    const r = rows[i];
-    if (!r[0]) continue;
-    items.push({
-      row: items.length + 1,
-      token: String(r[0] || "").trim(),
-      amount: String(r[1] || "").trim(),
-      direction: String(r[2] || "buy").toLowerCase().startsWith("s") ? "sell" : "buy",
-      slippage: r[3] != null && r[3] !== "" ? Number(r[3]) : null,
-      remark: String(r[4] || "").trim(),
-      walletIndex: -1,
-      symbol: "",
-    });
-  }
-  swapItems = swapItems.concat(items);
-  renderSwapTable();
-  flashMsg("swapListErr", `✅ 已解析 ${items.length} 笔`, true);
-});
 
 /* 发送钱包 */
 $("swapWalletType").addEventListener("change", () => {
@@ -1085,7 +967,7 @@ function renderSwapManaged() {
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="swap-managed-check" data-i="${i}" checked></td>
+        <td class="cell-check"><input type="checkbox" class="swap-managed-check" data-i="${i}" checked><span class="row-idx">${i + 1}.</span></td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
@@ -1113,15 +995,19 @@ $("swapSecretsFile").addEventListener("change", async (e) => {
 
 function readSwapConfig() {
   const t = $("swapWalletType").value;
+  const token = $("swapTokenAddr").value.trim();
+  if (!token) throw new Error("请填写合约地址(代币)");
+  if (!ethers.isAddress(token)) throw new Error("合约地址无效: " + token);
+  const direction = $("swapDirection").value;
+  const amount = direction === "buy" ? Number($("swapTokenAmount").value) : Number($("swapTokenQty").value);
+  if (!(amount > 0)) throw new Error(direction === "buy" ? "请填写交易金额(BNB)" : "请填写交易数量(代币)");
   const cfg = {
     rpc: $("cfgRpc").value.trim() || undefined,
     chainId: Number($("cfgChainId").value) || 56,
     senders: 1,
     startIndex: Math.max(0, Number($("cfgStartIndex").value) || 0),
     slippage: Number($("swapSlippage").value) || 1,
-    recipient: $("swapRecipient").value.trim() || undefined,
-    router: $("swapRouter").value.trim() || undefined,
-    items: swapItems.map((it, i) => ({ row: i + 1, token: it.token, amount: Number(it.amount), direction: it.direction, slippage: it.slippage, remark: it.remark, walletIndex: it.walletIndex })),
+    items: [{ row: 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: -1 }],
   };
   if (t === "mnemonic") cfg.mnemonic = $("swapWalletInput").value.trim();
   else if (t === "privateKeys") cfg.privateKeys = $("swapWalletInput").value.trim();
@@ -1129,16 +1015,15 @@ function readSwapConfig() {
   else {
     if (!managedWallets.length) throw new Error("管理列表为空, 请先到「钱包管理」导入钱包");
     const checked = [...document.querySelectorAll(".swap-managed-check:checked")].map((c) => Number(c.dataset.i));
-    if (!checked.length) throw new Error("请勾选要作为发送方的钱包(管理列表)");
+    if (!checked.length) throw new Error("请勾选要作为交易钱包的钱包(管理列表)");
     const keys = checked.map((i) => managedWallets[i].privateKey).filter(Boolean);
     if (!keys.length) throw new Error("勾选的钱包没有本会话私钥, 请先到「钱包管理」导入私钥");
     cfg.privateKeys = keys.join(",");
-    cfg.senders = keys.length; // 勾选几个就用几个发送钱包(轮询)
+    cfg.senders = keys.length;
   }
+  if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) throw new Error("请先填写交易钱包(助记词/私钥/管理列表)");
   return cfg;
 }
-
-/* 顶部合约地址/金额: 自动应用到全部行 */
 let swapTopSymTimer = null;
 $("swapTokenAddr").addEventListener("input", () => {
   clearTimeout(swapTopSymTimer);
@@ -1151,22 +1036,69 @@ $("swapTokenAddr").addEventListener("input", () => {
       const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
       const info = await window.EngineLib.getTokenInfo(engine, addr);
       sp.textContent = info.symbol ? "币种: " + info.symbol : "";
-      for (const it of swapItems) it.token = addr;
-      if (swapItems.length) renderSwapTable();
     } catch (e2) { sp.textContent = ""; }
   }, 700);
 });
-$("swapTokenAmount").addEventListener("input", () => {
-  const v = $("swapTokenAmount").value.trim();
-  if (v === "" || isNaN(Number(v))) return;
-  for (const it of swapItems) it.amount = v;
-  if (swapItems.length) renderSwapTable();
+/* 交易百分比: 按余额比例自动填金额/数量 */
+function swapWalletOnlyCfg() {
+  const t = $("swapWalletType").value;
+  const cfg = { rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, senders: 1, startIndex: Math.max(0, Number($("cfgStartIndex").value) || 0) };
+  if (t === "mnemonic") cfg.mnemonic = $("swapWalletInput").value.trim();
+  else if (t === "privateKeys") cfg.privateKeys = $("swapWalletInput").value.trim();
+  else if (t === "secretsFile") cfg.secretsJson = window._swapSecretsJson;
+  else {
+    if (!managedWallets.length) throw new Error("管理列表为空, 请先到「钱包管理」导入钱包");
+    const checked = [...document.querySelectorAll(".swap-managed-check:checked")].map((c) => Number(c.dataset.i));
+    if (!checked.length) throw new Error("请勾选要作为交易钱包的钱包(管理列表)");
+    const keys = checked.map((i) => managedWallets[i].privateKey).filter(Boolean);
+    if (!keys.length) throw new Error("勾选的钱包没有本会话私钥");
+    cfg.privateKeys = keys.join(",");
+    cfg.senders = keys.length;
+  }
+  if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) throw new Error("请先填写交易钱包(助记词/私钥/管理列表)");
+  return cfg;
+}
+function trimNum(n) {
+  if (!isFinite(n) || n <= 0) return "";
+  let s = n.toFixed(8);
+  s = s.replace(/0+$/, "").replace(/\.$/, "");
+  return s;
+}
+$("swapPctBox").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-pct]");
+  if (!btn) return;
+  const pct = Number(btn.dataset.pct) / 100;
+  let cfg;
+  try { cfg = swapWalletOnlyCfg(); } catch (err) { setErr("swapErr", err.message); return; }
+  const direction = $("swapDirection").value;
+  const token = $("swapTokenAddr").value.trim();
+  if (direction === "sell" && !ethers.isAddress(token)) { setErr("swapErr", "请先填写合约地址(代币)"); return; }
+  try {
+    const engine = new window.EngineLib.TransferEngine({ rpc: cfg.rpc, chainId: cfg.chainId, maxGasPrice: 10, feeMode: "legacy" });
+    const secrets = { mnemonic: cfg.mnemonic, privateKeys: cfg.privateKeys };
+    const senders = window.EngineLib.buildSenders(secrets, { senders: 1, startIndex: cfg.startIndex || 0 });
+    const addr = senders[0].address;
+    if (direction === "buy") {
+      const bal = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额");
+      $("swapTokenAmount").value = trimNum(Number(ethers.formatEther(bal)) * pct);
+    } else {
+      const info = await window.EngineLib.getTokenInfo(engine, token);
+      const tokenIface = new ethers.Interface(window.EngineLib.TOKEN_ABI);
+      const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
+      const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: token, data: balData }), "查询代币余额")))[0]);
+      $("swapTokenQty").value = trimNum(Number(ethers.formatUnits(bal, info.decimals)) * pct);
+    }
+    flashMsg("swapErr", "✅ 已按 " + btn.dataset.pct + "% 填入" + (direction === "buy" ? "交易金额(BNB)" : "交易数量(代币)"), true);
+  } catch (e2) { setErr("swapErr", "查询余额失败: " + (e2?.message || e2)); }
+});
+$("swapDirection").addEventListener("change", () => {
+  $("swapTokenAmount").value = "";
+  $("swapTokenQty").value = "";
 });
 
 /* 检查与执行 */
 $("swapBtnPreview").addEventListener("click", async () => {
   setErr("swapErr", "");
-  if (!swapItems.length) { setErr("swapErr", "请先填写/解析交易名单"); return; }
   try {
     const cfg = readSwapConfig();
     if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) throw new Error("请先填写发送钱包(助记词/私钥/管理列表)");
@@ -1193,12 +1125,11 @@ $("swapBtnPreview").addEventListener("click", async () => {
 
 $("swapBtnSend").addEventListener("click", async () => {
   setErr("swapErr", "");
-  if (!swapItems.length) { setErr("swapErr", "请先填写/解析交易名单"); return; }
   let cfg;
   try { cfg = readSwapConfig(); }
   catch (e) { setErr("swapErr", e.message); return; }
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) { setErr("swapErr", "请先填写发送钱包(助记词/私钥/管理列表)"); return; }
-  const ok = confirm(`即将在 PancakeSwap 执行 ${swapItems.length} 笔交易(卖单会自动先授权 Router)。\n\n请确认: 代币地址/方向/数量/滑点正确, 链(chainId=${cfg.chainId})正确。\n\n继续吗?`);
+  const ok = confirm(`即将在 PancakeSwap 执行 1 笔交易(卖单会自动先授权 Router)。\n\n请确认: 代币地址/方向/数量/滑点正确, 链(chainId=${cfg.chainId})正确。\n\n继续吗?`);
   if (!ok) return;
   try {
     $("swapBtnSend").disabled = true;
@@ -1258,7 +1189,7 @@ $("swapBtnDownload").addEventListener("click", () => {
   downloadCsv(lines.join("\n"), "swap-results.csv");
 });
 
-renderSwapTable();
+
 
 /* 初始渲染(放在所有声明之后, 避免 TDZ) */
 renderItems();
