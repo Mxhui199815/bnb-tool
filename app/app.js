@@ -1051,21 +1051,20 @@ $("swapSecretsFile").addEventListener("change", async (e) => {
   } catch (err) { setErr("swapWalletErr", err.message); }
 });
 
-function readSwapConfig() {
+async function readSwapConfig() {
   const t = $("swapWalletType").value;
   const token = $("swapTokenAddr").value.trim();
   if (!token) throw new Error("请填写合约地址(代币)");
   if (!ethers.isAddress(token)) throw new Error("合约地址无效: " + token);
   const direction = $("swapDirection").value;
-  const amount = direction === "buy" ? Number($("swapTokenAmount").value) : Number($("swapTokenQty").value);
-  if (!(amount > 0)) throw new Error(direction === "buy" ? "请填写交易金额(BNB)" : "请填写交易数量(代币)");
+  const qty = Number($("swapTokenQty").value);
+  if (!(qty > 0)) throw new Error("请填写交易数量(代币)");
   const cfg = {
     rpc: $("cfgRpc").value.trim() || undefined,
     chainId: Number($("cfgChainId").value) || 56,
     senders: 1,
     startIndex: 0,
     slippage: Number($("swapSlippage").value) || 1,
-    items: [{ row: 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: -1 }],
   };
   if (t === "mnemonic") cfg.mnemonic = $("swapWalletInput").value.trim();
   else if (t === "privateKeys") cfg.privateKeys = $("swapWalletInput").value.trim();
@@ -1080,9 +1079,53 @@ function readSwapConfig() {
     cfg.senders = keys.length;
   }
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) throw new Error("请先填写交易钱包(助记词/私钥/管理列表)");
+  let amount;
+  if (direction === "buy") {
+    const q = await swapQuote(token, qty, cfg, true);
+    amount = Number(ethers.formatEther(q.bnbWei));
+    if (!(amount > 0)) throw new Error("无法计算交易金额(BNB), 请检查合约地址与网络");
+  } else {
+    amount = qty;
+  }
+  cfg.items = [{ row: 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: -1 }];
   return cfg;
 }
-let swapTopSymTimer = null;
+
+/** 用 Router 报价: isBuy=买(需多少 BNB 得到 qty 代币), sell=卖 qty 代币得多少 BNB */
+async function swapQuote(token, qty, cfg, isBuy) {
+  const engine = new window.EngineLib.TransferEngine({ rpc: cfg.rpc, chainId: cfg.chainId, maxGasPrice: 10, feeMode: "legacy" });
+  const info = await window.EngineLib.getTokenInfo(engine, token);
+  const router = window.EngineLib.getRouterAddress({ chainId: cfg.chainId });
+  const routerIface = new ethers.Interface(window.EngineLib.ROUTER_ABI);
+  const qtyWei = ethers.parseUnits(String(qty), info.decimals);
+  const path = isBuy ? [window.EngineLib.WBNB, token] : [token, window.EngineLib.WBNB];
+  const method = isBuy ? "getAmountsIn" : "getAmountsOut";
+  const data = routerIface.encodeFunctionData(method, [qtyWei, path]);
+  const ret = await engine.call((p) => p.call({ to: router, data }), "查询价格");
+  const amounts = routerIface.decodeFunctionResult(method, ret)[0];
+  const bnbWei = isBuy ? amounts[0] : amounts[amounts.length - 1];
+  return { bnbWei: bnbWei, symbol: info.symbol, decimals: info.decimals };
+}
+
+let swapQtyTimer = null;
+async function updateSwapQuote() {
+  const sp = $("swapQuote");
+  if (!sp) return;
+  const qty = Number($("swapTokenQty").value);
+  const token = $("swapTokenAddr").value.trim();
+  if (!(qty > 0) || !ethers.isAddress(token)) { sp.textContent = ""; return; }
+  sp.textContent = "计算中…";
+  try {
+    const cfg = swapWalletOnlyCfg();
+    const isBuy = $("swapDirection").value === "buy";
+    const q = await swapQuote(token, qty, cfg, isBuy);
+    sp.textContent = (isBuy ? "交易金额 ≈ " : "可获得 ≈ ") + trimNum(Number(ethers.formatEther(q.bnbWei))) + " BNB";
+  } catch (e2) { sp.textContent = ""; }
+}
+$("swapTokenQty").addEventListener("input", () => {
+  clearTimeout(swapQtyTimer);
+  swapQtyTimer = setTimeout(updateSwapQuote, 700);
+});
 $("swapTokenAddr").addEventListener("input", () => {
   clearTimeout(swapTopSymTimer);
   swapTopSymTimer = setTimeout(async () => {
@@ -1149,23 +1192,19 @@ async function swapFillBalance(pct, target, isToken) {
     flashMsg("swapErr", "✅ 已按 " + Math.round(pct * 100) + "% 填入", true);
   } catch (e2) { setErr("swapErr", "查询余额失败: " + (e2?.message || e2)); }
 }
-$("swapAmountPct").addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-pct]");
-  if (btn) swapFillBalance(Number(btn.dataset.pct) / 100, "swapTokenAmount", false);
-});
 $("swapQtyPct").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-pct]");
   if (btn) swapFillBalance(Number(btn.dataset.pct) / 100, "swapTokenQty", true);
 });$("swapDirection").addEventListener("change", () => {
-  $("swapTokenAmount").value = "";
   $("swapTokenQty").value = "";
+  updateSwapQuote();
 });
 
 /* 检查与执行 */
 $("swapBtnPreview").addEventListener("click", async () => {
   setErr("swapErr", "");
   try {
-    const cfg = readSwapConfig();
+    const cfg = await readSwapConfig();
     if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) throw new Error("请先填写发送钱包(助记词/私钥/管理列表)");
     $("swapBtnPreview").disabled = true;
     const data = await api("/api/swap/preview", cfg);
@@ -1191,7 +1230,7 @@ $("swapBtnPreview").addEventListener("click", async () => {
 $("swapBtnSend").addEventListener("click", async () => {
   setErr("swapErr", "");
   let cfg;
-  try { cfg = readSwapConfig(); }
+  try { cfg = await readSwapConfig(); }
   catch (e) { setErr("swapErr", e.message); return; }
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) { setErr("swapErr", "请先填写发送钱包(助记词/私钥/管理列表)"); return; }
   const ok = confirm(`即将在 PancakeSwap 执行 1 笔交易(卖单会自动先授权 Router)。\n\n请确认: 代币地址/方向/数量/滑点正确, 链(chainId=${cfg.chainId})正确。\n\n继续吗?`);
