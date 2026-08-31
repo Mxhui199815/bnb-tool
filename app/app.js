@@ -147,7 +147,7 @@ function renderTransferRecv() {
       <tr>
         <td><input type="checkbox" class="recv-check" data-i="${i}" checked></td>
         
-        <td class="mono">${esc(w.address)}</td>
+        <td class="mono">${i + 1}. ${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
       </tr>`).join("")}</tbody>`;
 }
@@ -243,7 +243,7 @@ function renderTransferManaged() {
       <tr>
         <td><input type="checkbox" class="transfer-managed-check" data-i="${i}" checked></td>
         
-        <td class="mono">${esc(w.address)}</td>
+        <td class="mono">${i + 1}. ${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
@@ -298,7 +298,7 @@ async function doPreview() {
 function renderPreview(data) {
   $("previewBox").hidden = false;
   $("walletCards").innerHTML = data.wallets.map((w) => `
-    <div class="wallet-card"><div class="addr">${w.address}</div></div>`).join("");
+    <div class="wallet-card"><div class="addr">#${w.index} ${w.address}</div></div>`).join("");
   $("previewTable").innerHTML = `
     <thead><tr><th>发送钱包</th><th>收款地址</th><th>金额 BNB</th><th>备注</th></tr></thead>
     <tbody>${data.plan.map((p) => `
@@ -498,7 +498,7 @@ function renderGenTable() {
       <tr>
         <td><input type="checkbox" class="gen-check" data-i="${i}"></td>
         
-        <td class="mono">${esc(w.address)}</td>
+        <td class="mono">${w.index}. ${esc(w.address)}</td>
         <td class="mono" id="genkey-${i}">${esc(maskKey(w.privateKey))}</td>
         <td>
           <button class="btn ghost" data-genshow="${i}">显示</button>
@@ -615,7 +615,7 @@ function renderMgrTable() {
     <tbody>${managedWallets.map((w, i) => `
       <tr>
         
-        <td class="mono">${esc(w.address)}</td>
+        <td class="mono">${i + 1}. ${esc(w.address)}</td>
         <td><input data-mlabel="${i}" value="${esc(w.label)}"></td>
         <td class="mono">${w.balance != null ? esc(w.balance) : "—"}</td>
         <td>
@@ -754,7 +754,7 @@ function renderConManaged() {
       <tr>
         <td><input type="checkbox" class="con-managed-check" data-i="${i}" checked></td>
         
-        <td class="mono">${esc(w.address)}</td>
+        <td class="mono">${i + 1}. ${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
@@ -1009,7 +1009,7 @@ function renderSwapManaged() {
       <tr>
         <td><input type="checkbox" class="swap-managed-check" data-i="${i}" checked></td>
         
-        <td class="mono">${esc(w.address)}</td>
+        <td class="mono">${i + 1}. ${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
