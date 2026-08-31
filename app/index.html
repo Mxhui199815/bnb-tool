@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831i">
+<link rel="stylesheet" href="style.css?v=20260831j">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -41,7 +41,7 @@
     <a href="#/manage">🗂️ 钱包管理</a>
     <a href="#/transfer">💸 批量转账</a>
     <a href="#/consolidate">🧹 资产归集</a>
-    <a href="#/swap">🔄 薄饼交易</a>
+    <a href="#/swap">🔄 批量交易</a>
   </nav>
 </header>
 
@@ -195,12 +195,16 @@
             <option value="mnemonic">助记词派生</option>
             <option value="privateKeys">私钥列表(逗号分隔)</option>
             <option value="csv">钱包 CSV (address[,privateKey][,label])</option>
+            <option value="csvfile">CSV / Excel 文件</option>
           </select>
         </label>
         <label>派生数量 <input type="number" id="mgrCount" value="10" min="1" max="1000"></label>
       </div>
       <div class="row">
         <textarea id="mgrInput" rows="2" placeholder="粘贴助记词…"></textarea>
+        <input type="file" id="mgrFile" accept=".csv,.xlsx,.xls" hidden>
+        <button id="btnMgrFile" class="btn ghost" hidden>📂 选择 CSV / Excel 文件</button>
+        <span id="mgrFileName" class="hint"></span>
         <button id="btnMgrImport" class="btn primary">📥 导入</button>
       </div>
       <div class="row">
@@ -215,7 +219,7 @@
     </section>
   </div>
 
-    <!-- ============ 页面: 薄饼交易 ============ -->
+    <!-- ============ 页面: 批量交易 ============ -->
   <div class="page" id="page-swap">
 <section class="card">
       <h2>交易参数与合约</h2>
@@ -306,6 +310,7 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
           </select>
         </label>
         <label>目标地址 <input type="text" id="conTarget" placeholder="0x… 归集目标地址"></label>
+        <label>代币地址(选填, 留空归集 BNB) <input type="text" id="conToken" placeholder="0x… 如 USDT 合约地址"><span id="conTokenSym" class="hint"></span></label>
         <label>数量 <input type="number" id="conCount" value="10" min="1" max="1000"></label>
         <label>起始序号 <input type="number" id="conStartIndex" value="0" min="0"></label>
       </div>
@@ -338,11 +343,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831i"></script>
-<script src="vendor/exceljs.min.js?v=20260831i"></script>
-<script src="engine.js?v=20260831i"></script>
-<script src="license.js?v=20260831i"></script>
-<script src="webapi.js?v=20260831i"></script>
-<script src="app.js?v=20260831i"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831j"></script>
+<script src="vendor/exceljs.min.js?v=20260831j"></script>
+<script src="engine.js?v=20260831j"></script>
+<script src="license.js?v=20260831j"></script>
+<script src="webapi.js?v=20260831j"></script>
+<script src="app.js?v=20260831j"></script>
 </body>
 </html>
