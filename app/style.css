@@ -141,3 +141,6 @@ nav a.active { background: #0e7490; border-color: #22d3ee; color: #fff; }
 .batch-amount-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .batch-amount-row label { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #cbd5e1; }
 .batch-amount-input { width: 110px !important; }
+
+.cell-token { display: flex; align-items: center; flex-wrap: wrap; }
+.token-sym { color: #7dd3fc; font-size: 12px; margin-left: 6px; white-space: nowrap; }
