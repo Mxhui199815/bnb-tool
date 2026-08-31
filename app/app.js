@@ -46,15 +46,23 @@ function renderItems() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${esc(it.row)}</td>
-      <td><input data-i="${i}" data-k="to" value="${esc(it.to)}"></td>
+      <td class="cell-to">
+        <input data-i="${i}" data-k="to" value="${esc(it.to)}" placeholder="0x…">
+        ${managedWallets.length ? `<select class="pick-managed" data-pick="${i}" title="从管理列表选择地址">
+          <option value="">📖 从列表选…</option>
+          ${managedWallets.map((w, j) => `<option value="${esc(w.address)}">#${j + 1} ${esc(w.label || w.address.slice(0, 10) + "…")}</option>`).join("")}
+        </select>` : ""}
+      </td>
       <td><input data-i="${i}" data-k="amount" value="${esc(it.amount)}"></td>
       <td><input data-i="${i}" data-k="remark" value="${esc(it.remark)}"></td>
       <td><input data-i="${i}" data-k="walletIndex" value="${it.walletIndex >= 0 ? it.walletIndex : ""}" placeholder="轮询"></td>
+      <td class="mono">${it.balance != null ? esc(it.balance) : "—"}</td>
       <td><button class="btn ghost" data-del="${i}">删除</button></td>`;
     tb.appendChild(tr);
   });
   $("itemsTable").hidden = items.length === 0;
   $("btnAddRow").hidden = items.length === 0;
+  $("btnCheckBalances").hidden = items.length === 0;
   if (window.renderTransferRecv) renderTransferRecv();
   $("listSummary").innerHTML = items.length
     ? `共 <b>${items.length}</b> 笔, 合计 <b>${fmtNum(total)}</b> BNB` : "";
@@ -67,6 +75,18 @@ $("itemsBody").addEventListener("input", (e) => {
   else if (k === "amount") items[i].amount = el.value;
   else items[i][k] = el.value;
 });
+$("itemsBody").addEventListener("change", (e) => {
+  const pick = e.target.dataset.pick;
+  if (pick == null) return;
+  const i = Number(pick);
+  const val = e.target.value;
+  if (val && items[i]) {
+    items[i].to = val;
+    const input = e.target.closest("tr").querySelector('input[data-k="to"]');
+    if (input) input.value = val;
+  }
+  e.target.value = "";
+});
 $("itemsBody").addEventListener("click", (e) => {
   const i = e.target.dataset.del;
   if (i != null) { items.splice(Number(i), 1); items.forEach((it, idx) => (it.row = idx + 1)); renderItems(); }
@@ -74,6 +94,28 @@ $("itemsBody").addEventListener("click", (e) => {
 $("btnAddRow").addEventListener("click", () => {
   items.push({ row: items.length + 1, to: "", amount: "", remark: "", walletIndex: -1 });
   renderItems();
+});
+
+$("btnCheckBalances").addEventListener("click", async () => {
+  const addrs = [...new Set(items.map((it) => it.to).filter(Boolean))];
+  if (!addrs.length) { setErr("listErr", "接收名单里还没有地址"); return; }
+  setErr("listErr", "");
+  try {
+    $("btnCheckBalances").disabled = true;
+    $("btnCheckBalances").textContent = "查询中…";
+    const data = await api("/api/wallets/balances", {
+      rpc: $("cfgRpc").value.trim() || undefined,
+      chainId: Number($("cfgChainId").value) || 56,
+      addresses: addrs,
+    });
+    const map = {};
+    for (const b of data.balances) map[b.address.toLowerCase()] = b.balance;
+    for (const it of items) it.balance = it.to ? (map[it.to.toLowerCase()] ?? null) : null;
+    renderItems();
+    const total = items.reduce((s, it) => s + (Number(it.balance) || 0), 0);
+    flashMsg("listErr", `✅ 已查询 ${addrs.length} 个地址余额, 合计 ${fmtNum(total)} BNB`, true);
+  } catch (e) { setErr("listErr", e.message); }
+  finally { $("btnCheckBalances").disabled = false; $("btnCheckBalances").textContent = "🔍 查询接收人余额"; }
 });
 
 /* 接收名单: 从管理列表勾选添加接收人 */
