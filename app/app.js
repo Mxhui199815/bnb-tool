@@ -733,7 +733,19 @@ $("btnMgrBalances").addEventListener("click", async () => {
     });
     const map = {};
     for (const b of data.balances) map[b.address.toLowerCase()] = b.balance;
-    for (const w of managedWallets) w.balance = map[w.address.toLowerCase()] ?? null;
+    if (data.tokenBalances) {
+       for (const tb of data.tokenBalances) {
+         const key = tb.address.toLowerCase();
+         if (!w.balances) w.balances = {};
+         w.balances[tb.symbol] = tb.balance;
+       }
+     } else {
+       for (const b of data.balances) map[b.address.toLowerCase()] = b.balance;
+       for (const w of managedWallets) {
+         w.balance = map[w.address.toLowerCase()] ?? null;
+         w.tokenSym = data.symbol || "BNB";
+       }
+     }
     renderMgrTable();
   } catch (e) { setErr("mgrErr", e.message); }
   finally { $("btnMgrBalances").disabled = false; }
