@@ -131,3 +131,9 @@ nav a.active { background: #0e7490; border-color: #22d3ee; color: #fff; }
   border-radius: 999px; padding: 5px 12px; font-size: 12px; white-space: nowrap;
 }
 .license-badge .out { margin-left: 8px; cursor: pointer; text-decoration: underline; color: #a5f3fc; }
+
+/* 接收名单: 地址选择 + 余额列 */
+.cell-to { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.cell-to input { min-width: 240px; }
+.cell-to select.pick-managed { width: 128px; padding: 6px 8px; border-radius: 6px; background: #0f172a; color: #e2e8f0; border: 1px solid #475569; font-size: 12px; }
+#btnCheckBalances { margin-left: 8px; }
