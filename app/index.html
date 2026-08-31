@@ -90,7 +90,7 @@
     </section>
 
 <section class="card">
-      <h2>① 转账名单</h2>
+      <h2>① 接收名单</h2>
       <div class="row">
         <label class="file-btn">选择 CSV / Excel 文件<input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden></label>
         <span class="hint" id="fileName"></span>
@@ -106,9 +106,14 @@
       </table>
       <div class="row">
   <button id="btnAddRow" class="btn ghost" hidden>＋ 添加一行</button>
-  <button id="btnAddManaged" class="btn ghost" hidden>＋ 从管理列表添加</button>
   <span class="hint" id="listManagedHint"></span>
 </div>
+      <div id="transferRecvBox" class="manage-picker" hidden>
+        <h3>📋 管理列表 · 选择接收人（勾选后加入接收名单）</h3>
+        <div class="row"><span class="hint" id="transferRecvHint"></span></div>
+        <table class="grid" id="transferRecvTable"></table>
+        <button id="btnAddRecvManaged" class="btn ghost">＋ 把勾选的加入接收名单</button>
+      </div>
       <div class="err" id="listErr"></div>
     </section>
 
