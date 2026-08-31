@@ -144,3 +144,6 @@ nav a.active { background: #0e7490; border-color: #22d3ee; color: #fff; }
 
 .cell-token { display: flex; align-items: center; flex-wrap: wrap; }
 .token-sym { color: #7dd3fc; font-size: 12px; margin-left: 6px; white-space: nowrap; }
+
+.cell-check { white-space: nowrap; }
+.row-idx { color: #7dd3fc; font-size: 12px; margin-right: 4px; }
