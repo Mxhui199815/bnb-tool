@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831l">
+<link rel="stylesheet" href="style.css?v=20260831m">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -92,17 +92,9 @@
 
 <section class="card">
       <h2>接收名单</h2>
-      <div class="row">
-        <label class="file-btn">选择 CSV / Excel 文件<input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden></label>
-        <span class="hint" id="fileName"></span>
-      </div>
-      <div class="row">
-        <textarea id="pasteCsv" rows="4" placeholder="或直接粘贴 CSV 文本, 例如:&#10;to,amount,remark&#10;0x8894E0a0c962CB723c1976a4421c95949bE2D4E3,0.01,测试"></textarea>
-        <button id="btnPaste" class="btn">解析粘贴内容</button>
-      </div>
       <div class="row" id="listSummary"></div>
       <table class="grid" id="itemsTable" hidden>
-        <thead><tr><th>收款地址 (to)</th><th>金额 BNB</th><th>备注</th><th>发送钱包序号</th><th>余额 BNB</th><th></th></tr></thead>
+        <thead><tr><th>收款地址 (to)</th><th>代币数量</th><th>备注</th><th>发送钱包序号</th><th>余额 BNB</th><th></th></tr></thead>
         <tbody id="itemsBody"></tbody>
       </table>
       <div class="row">
@@ -111,7 +103,7 @@
   <span class="hint" id="listManagedHint"></span>
 </div>
 <div class="row batch-amount-row">
-  <label>每笔金额 (BNB) <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001" class="batch-amount-input"></label>
+  <label>每笔数量 <input type="number" id="batchAmount" value="0.01" min="0" step="0.00000001" class="batch-amount-input"></label>
   <button id="btnBatchAmount" class="btn ghost">📝 批量填入全部行</button>
   <span class="hint">给所有已填地址的行统一填写金额</span>
 </div>
@@ -120,6 +112,10 @@
         <div class="row"><span class="hint" id="transferRecvHint"></span></div>
         <table class="grid" id="transferRecvTable"></table>
         <button id="btnAddRecvManaged" class="btn ghost">＋ 把勾选的加入接收名单</button>
+      </div>
+      <div class="row">
+        <label class="file-btn">选择 CSV / Excel 文件<input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden></label>
+        <span class="hint" id="fileName"></span>
       </div>
       <div class="err" id="listErr"></div>
     </section>
@@ -214,6 +210,7 @@
         <button id="btnMgrExport" class="btn">⬇️ 导出地址 CSV</button>
         <label class="check"><input type="checkbox" id="mgrExportKeys"> 导出含私钥(仅本次会话导入的钱包, 危险)</label>
         <button id="btnMgrClear" class="btn ghost">🗑️ 清空列表</button>
+        <button id="btnMgrRemove" class="btn ghost">🗑️ 移除选中</button>
       </div>
       <div class="err" id="mgrErr"></div>
       <table class="grid" id="mgrTable"></table>
@@ -221,22 +218,8 @@
     </section>
   </div>
 
-    <!-- ============ 页面: 批量交易 ============ -->
-
   <!-- ============ 页面: 批量空投 ============ -->
   <div class="page" id="page-airdrop">
-    <section class="card">
-      <h2>空投参数</h2>
-      <div class="row">
-        <label>接收地址(每行一个地址, 可整框粘贴)
-          <textarea id="airdropAddrs" rows="8" placeholder="0x1111…&#10;0x2222…&#10;0x3333…"></textarea>
-        </label>
-      </div>
-      <div class="grid2">
-        <label>代币地址(选填, 留空空投 BNB) <input type="text" id="airdropToken" placeholder="0x… 如 USDT"><span id="airdropTokenSym" class="hint"></span></label>
-        <label>每笔金额 (BNB 或代币) <input type="number" id="airdropAmount" value="0.01" min="0" step="0.00000001"></label>
-      </div>
-    </section>
     <section class="card">
       <h2>空投钱包</h2>
       <div class="row">
@@ -249,6 +232,18 @@
         <textarea id="airdropWalletInput" rows="3" placeholder="粘贴 12/24 个助记词单词…"></textarea>
       </div>
       <div class="err" id="airdropWalletErr"></div>
+    </section>
+    <section class="card">
+      <h2>空投参数</h2>
+      <div class="row">
+        <label>接收地址(每行一个地址, 可整框粘贴)
+          <textarea id="airdropAddrs" rows="8" placeholder="0x1111…&#10;0x2222…&#10;0x3333…"></textarea>
+        </label>
+      </div>
+      <div class="grid2">
+        <label>合约地址(选填, 留空空投 BNB) <input type="text" id="airdropToken" placeholder="0x… 如 USDT"><span id="airdropTokenSym" class="hint"></span></label>
+        <label>每笔数量 <input type="number" id="airdropAmount" value="0.01" min="0" step="0.00000001"></label>
+      </div>
     </section>
     <section class="card">
       <h2>检查与空投</h2>
@@ -274,16 +269,24 @@
   </div>
 
   <div class="page" id="page-swap">
-<section class="card">
+    <section class="card">
       <h2>交易参数与合约</h2>
       <div class="grid2">
         <label>默认滑点 % <input type="number" id="swapSlippage" value="1" min="0" max="50" step="0.1"></label>
-        <label>收款地址(留空 = 发送方) <input type="text" id="swapRecipient" placeholder="0x…"></label>
-        <label>Router 合约地址(留空 = 按链自动)
-          <input type="text" id="swapRouter" placeholder="PancakeSwap V2">
+        <label>方向
+          <select id="swapDirection"><option value="buy" selected>买 (用 BNB 买代币)</option><option value="sell">卖 (卖代币换 BNB)</option></select>
         </label>
-        <label>合约地址(代币, 填后自动应用到全部行) <input type="text" id="swapTokenAddr" placeholder="0x…"><span id="swapTokenName" class="hint"></span></label>
-        <label>交易金额 BNB <input type="number" id="swapTokenAmount" min="0" step="0.00000001" placeholder="填后自动应用到全部行"></label>
+        <label>合约地址(代币, 输入后自动显示币名) <input type="text" id="swapTokenAddr" placeholder="0x…"><span id="swapTokenName" class="hint"></span></label>
+        <label>交易金额 BNB (买) <input type="number" id="swapTokenAmount" min="0" step="0.00000001"></label>
+        <label>交易数量 代币 (卖) <input type="number" id="swapTokenQty" min="0" step="0.00000001"></label>
+        <label>交易百分比
+          <span id="swapPctBox" class="pct-box">
+            <button type="button" class="btn ghost" data-pct="25">25%</button>
+            <button type="button" class="btn ghost" data-pct="50">50%</button>
+            <button type="button" class="btn ghost" data-pct="75">75%</button>
+            <button type="button" class="btn ghost" data-pct="100">100%</button>
+          </span>
+        </label>
       </div>
       <pre class="keybox" id="swapContractInfo">PancakeSwap V2 Router (主网): 0x10ED43C718714eb63d5aA57B78B54704E256024E
 WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
@@ -310,23 +313,6 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
         <table class="grid" id="swapManagedTable"></table>
       </div>
       <div class="err" id="swapWalletErr"></div>
-    </section>
-
-<section class="card">
-      <h2>交易名单</h2>
-      <div class="row">
-        <textarea id="swapPaste" rows="3" placeholder="或粘贴 CSV: token,amount,direction,slippage,remark&#10;0x…代币地址,1,buy,1,备注"></textarea>
-        <button id="swapBtnPaste" class="btn">解析粘贴</button>
-        <button id="swapBtnAdd" class="btn ghost">＋ 添加一行</button>
-        <button id="swapBtnClear" class="btn ghost">🗑️ 清空</button>
-      </div>
-      <div class="row" id="swapSummary"></div>
-      <table class="grid" id="swapTable" hidden>
-        <thead><tr><th>代币地址</th><th>数量</th><th>方向</th><th>滑点%</th><th>备注</th><th>交易钱包</th><th></th></tr></thead>
-        <tbody id="swapBody"></tbody>
-      </table>
-      <p class="hint">方向: buy=用 BNB 买代币 / sell=卖代币换 BNB; 发送钱包留空则轮询使用。</p>
-      <div class="err" id="swapListErr"></div>
     </section>
 
 <section class="card">
@@ -398,11 +384,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831l"></script>
-<script src="vendor/exceljs.min.js?v=20260831l"></script>
-<script src="engine.js?v=20260831l"></script>
-<script src="license.js?v=20260831l"></script>
-<script src="webapi.js?v=20260831l"></script>
-<script src="app.js?v=20260831l"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831m"></script>
+<script src="vendor/exceljs.min.js?v=20260831m"></script>
+<script src="engine.js?v=20260831m"></script>
+<script src="license.js?v=20260831m"></script>
+<script src="webapi.js?v=20260831m"></script>
+<script src="app.js?v=20260831m"></script>
 </body>
 </html>
