@@ -43,6 +43,7 @@
       waitTimeoutMs: cfg.waitTimeoutMs ?? 60000,
       skipBalanceCheck: !!cfg.skipBalanceCheck,
       feeMode: cfg.feeMode === "eip1559" ? "eip1559" : "legacy",
+      gasSpeedMult: cfg.gasSpeed === "slow" ? 0.9 : cfg.gasSpeed === "fast" ? 1.5 : 1,
       hooks,
     };
   }
