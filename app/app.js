@@ -140,14 +140,13 @@ function renderTransferRecv() {
   $("transferRecvHint").textContent = `共 ${managedWallets.length} 个管理钱包, 勾选后加入接收名单`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:34px"><input type="checkbox" id="transferRecvAll" checked title="全选"></th>
+      <th style="width:58px"><input type="checkbox" id="transferRecvAll" checked title="全选"></th>
       <th>地址</th><th>标签</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td><input type="checkbox" class="recv-check" data-i="${i}" checked></td>
-        
-        <td class="mono">${i + 1}. ${esc(w.address)}</td>
+        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="recv-check" data-i="${i}" checked></td>
+        <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
       </tr>`).join("")}</tbody>`;
 }
@@ -236,14 +235,13 @@ function renderTransferManaged() {
   $("transferManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可作发送方; 勾选后作为可用发送钱包(轮询)`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:34px"><input type="checkbox" id="transferManagedAll" checked title="全选"></th>
+      <th style="width:58px"><input type="checkbox" id="transferManagedAll" checked title="全选"></th>
       <th>地址</th><th>标签</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td><input type="checkbox" class="transfer-managed-check" data-i="${i}" checked></td>
-        
-        <td class="mono">${i + 1}. ${esc(w.address)}</td>
+        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="transfer-managed-check" data-i="${i}" checked></td>
+        <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
@@ -491,14 +489,13 @@ $("btnGen").addEventListener("click", async () => {
 function renderGenTable() {
   $("genTable").innerHTML = `
     <thead><tr>
-      <th style="width:34px"><input type="checkbox" id="genSelectAll" title="全选"></th>
+      <th style="width:58px"><input type="checkbox" id="genSelectAll" title="全选"></th>
       <th>地址</th><th>私钥</th><th>操作</th>
     </tr></thead>
     <tbody>${genState.wallets.map((w, i) => `
       <tr>
-        <td><input type="checkbox" class="gen-check" data-i="${i}"></td>
-        
-        <td class="mono">${w.index}. ${esc(w.address)}</td>
+        <td class="cell-check"><span class="row-idx">${w.index}.</span> <input type="checkbox" class="gen-check" data-i="${i}"></td>
+        <td class="mono">${esc(w.address)}</td>
         <td class="mono" id="genkey-${i}">${esc(maskKey(w.privateKey))}</td>
         <td>
           <button class="btn ghost" data-genshow="${i}">显示</button>
@@ -747,14 +744,13 @@ function renderConManaged() {
   $("conManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可归集; 无私钥的只能查余额`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:34px"><input type="checkbox" id="conManagedAll" checked title="全选"></th>
+      <th style="width:58px"><input type="checkbox" id="conManagedAll" checked title="全选"></th>
       <th>地址</th><th>标签</th><th>可归集</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td><input type="checkbox" class="con-managed-check" data-i="${i}" checked></td>
-        
-        <td class="mono">${i + 1}. ${esc(w.address)}</td>
+        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="con-managed-check" data-i="${i}" checked></td>
+        <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
@@ -1026,14 +1022,13 @@ function renderSwapManaged() {
   $("swapManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可作发送方; 勾选后自动作为可用发送钱包(轮询)`;
   tb.innerHTML = `
     <thead><tr>
-      <th style="width:34px"><input type="checkbox" id="swapManagedAll" checked title="全选"></th>
+      <th style="width:58px"><input type="checkbox" id="swapManagedAll" checked title="全选"></th>
       <th>地址</th><th>标签</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
-        <td><input type="checkbox" class="swap-managed-check" data-i="${i}" checked></td>
-        
-        <td class="mono">${i + 1}. ${esc(w.address)}</td>
+        <td class="cell-check"><span class="row-idx">${i + 1}.</span> <input type="checkbox" class="swap-managed-check" data-i="${i}" checked></td>
+        <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
