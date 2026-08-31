@@ -122,6 +122,34 @@ $("btnCheckBalances").addEventListener("click", async () => {
   finally { $("btnCheckBalances").disabled = false; $("btnCheckBalances").textContent = "🔍 查询接收人余额"; }
 });
 
+$("transferPctBox").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-pct]");
+  if (!btn) return;
+  const pct = Number(btn.dataset.pct) / 100;
+  try {
+    const cfg = readConfig();
+    if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) { setErr("listErr", "请先填写发送钱包(助记词/私钥)"); return; }
+    const engine = new window.EngineLib.TransferEngine({ rpc: cfg.rpc, chainId: cfg.chainId, maxGasPrice: 10, feeMode: "legacy" });
+    const secrets = { mnemonic: cfg.mnemonic, privateKeys: cfg.privateKeys };
+    const senders = window.EngineLib.buildSenders(secrets, { senders: 1, startIndex: 0 });
+    const addr = senders[0].address;
+    let amt;
+    if (cfg.token) {
+      const info = await window.EngineLib.getTokenInfo(engine, cfg.token);
+      const tokenIface = new ethers.Interface(window.EngineLib.TOKEN_ABI);
+      const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
+      const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: cfg.token, data: balData }), "查询代币余额")))[0]);
+      amt = Number(ethers.formatUnits(bal, info.decimals)) * pct;
+    } else {
+      const bal = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额");
+      amt = Number(ethers.formatEther(bal)) * pct;
+    }
+    const v = trimNum(amt);
+    if (v === "") { setErr("listErr", "钱包余额为 0, 无法按比例填写"); return; }
+    $("batchAmount").value = v;
+    flashMsg("listErr", "✅ 已按 " + btn.dataset.pct + "% 填入每笔数量 " + v + (cfg.token ? " (代币)" : " (BNB)"), true);
+  } catch (e2) { setErr("listErr", "查询余额失败: " + (e2?.message || e2)); }
+});
 $("btnBatchAmount").addEventListener("click", () => {
   const v = $("batchAmount").value.trim();
   if (v === "" || isNaN(Number(v)) || Number(v) <= 0) { setErr("listErr", "请先填写每笔金额（大于 0）"); return; }
