@@ -192,6 +192,7 @@ $("btnAddRecvManaged")?.addEventListener("click", () => {
   const selected = [...document.querySelectorAll(".recv-check:checked")].map((c) => Number(c.dataset.i));
   if (!selected.length) { setErr("listErr", "请勾选要加入接收名单的管理钱包"); return; }
   setErr("listErr", "");
+  items = items.filter((it) => it.to || it.amount);
   const chosen = selected.map((i) => managedWallets[i]);
   for (const w of chosen) {
     items.push({ row: items.length + 1, to: w.address, amount: "", remark: w.label || "", walletIndex: -1 });
@@ -1112,34 +1113,41 @@ function trimNum(n) {
   s = s.replace(/0+$/, "").replace(/\.$/, "");
   return s;
 }
-$("swapPctBox").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button[data-pct]");
-  if (!btn) return;
-  const pct = Number(btn.dataset.pct) / 100;
+async function swapFillBalance(pct, target, isToken) {
   let cfg;
   try { cfg = swapWalletOnlyCfg(); } catch (err) { setErr("swapErr", err.message); return; }
-  const direction = $("swapDirection").value;
   const token = $("swapTokenAddr").value.trim();
-  if (direction === "sell" && !ethers.isAddress(token)) { setErr("swapErr", "请先填写合约地址(代币)"); return; }
+  if (isToken && !ethers.isAddress(token)) { setErr("swapErr", "请先填写合约地址(代币)"); return; }
   try {
     const engine = new window.EngineLib.TransferEngine({ rpc: cfg.rpc, chainId: cfg.chainId, maxGasPrice: 10, feeMode: "legacy" });
     const secrets = { mnemonic: cfg.mnemonic, privateKeys: cfg.privateKeys };
     const senders = window.EngineLib.buildSenders(secrets, { senders: 1, startIndex: cfg.startIndex || 0 });
     const addr = senders[0].address;
-    if (direction === "buy") {
-      const bal = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额");
-      $("swapTokenAmount").value = trimNum(Number(ethers.formatEther(bal)) * pct);
-    } else {
+    let amt;
+    if (isToken) {
       const info = await window.EngineLib.getTokenInfo(engine, token);
       const tokenIface = new ethers.Interface(window.EngineLib.TOKEN_ABI);
       const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
       const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: token, data: balData }), "查询代币余额")))[0]);
-      $("swapTokenQty").value = trimNum(Number(ethers.formatUnits(bal, info.decimals)) * pct);
+      amt = Number(ethers.formatUnits(bal, info.decimals)) * pct;
+    } else {
+      const bal = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额");
+      amt = Number(ethers.formatEther(bal)) * pct;
     }
-    flashMsg("swapErr", "✅ 已按 " + btn.dataset.pct + "% 填入" + (direction === "buy" ? "交易金额(BNB)" : "交易数量(代币)"), true);
+    const v = trimNum(amt);
+    if (v === "") { setErr("swapErr", "钱包余额为 0, 无法按比例填写"); return; }
+    $(target).value = v;
+    flashMsg("swapErr", "✅ 已按 " + Math.round(pct * 100) + "% 填入", true);
   } catch (e2) { setErr("swapErr", "查询余额失败: " + (e2?.message || e2)); }
+}
+$("swapAmountPct").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-pct]");
+  if (btn) swapFillBalance(Number(btn.dataset.pct) / 100, "swapTokenAmount", false);
 });
-$("swapDirection").addEventListener("change", () => {
+$("swapQtyPct").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-pct]");
+  if (btn) swapFillBalance(Number(btn.dataset.pct) / 100, "swapTokenQty", true);
+});$("swapDirection").addEventListener("change", () => {
   $("swapTokenAmount").value = "";
   $("swapTokenQty").value = "";
 });
