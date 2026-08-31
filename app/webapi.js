@@ -347,6 +347,8 @@
     }
     const feePerTx = await engine.getFeePerTx();
     const reserve = (feePerTx * 110n) / 100n;
+    const pctN = Math.min(100, Math.max(1, Number(body.pct) || 100)) / 100;
+    const pctBig = BigInt(Math.round(pctN * 100));
     const tokenIface = isToken ? new ethers.Interface(E.TOKEN_ABI) : null;
     const plan = [];
     for (const s of sources) {
@@ -358,14 +360,14 @@
         if (balance <= 0n) reason = "代币余额为 0";
         else if (s.address.toLowerCase() === target.toLowerCase()) reason = "源地址=目标地址, 跳过";
         else if (!s.privateKey) reason = "无私钥, 仅查询余额";
-        else { amount = balance; ok = true; }
+        else { amount = (balance * pctBig) / 100n; ok = true; }
         plan.push({ index: s.index, address: s.address, hasKey: !!s.privateKey, balance: ethers.formatUnits(balance, info.decimals), fee: feeStr, amount: ethers.formatUnits(amount, info.decimals), ok, reason });
       } else {
         balance = BigInt(await engine.call((p) => p.getBalance(s.address), "查询余额 (" + s.address.slice(0, 10) + "...)"));
         if (balance <= reserve) reason = "余额不足以支付手续费";
         else if (s.address.toLowerCase() === target.toLowerCase()) reason = "源地址=目标地址, 跳过";
         else if (!s.privateKey) reason = "无私钥, 仅查询余额";
-        else { amount = balance - reserve; ok = true; }
+        else { amount = ((balance - reserve) * pctBig) / 100n; ok = true; }
         plan.push({ index: s.index, address: s.address, hasKey: !!s.privateKey, balance: ethers.formatEther(balance), fee: feeStr, amount: ethers.formatEther(amount), ok, reason });
       }
     }
@@ -403,14 +405,17 @@
             const balData = tokenIface.encodeFunctionData("balanceOf", [s.address]);
             const balance = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额")))[0]);
             if (balance <= 0n) continue;
-            const txData = tokenIface.encodeFunctionData("transfer", [target, balance]);
+            const pctN2 = Math.min(100, Math.max(1, Number(body.pct) || 100)) / 100;
+            const sendAmt = (balance * BigInt(Math.round(pctN2 * 100))) / 100n;
+            if (sendAmt <= 0n) continue;
+            const txData = tokenIface.encodeFunctionData("transfer", [target, sendAmt]);
             try {
               const r = await E.broadcastTx(engine, { index: s.index, wallet: new ethers.Wallet(s.privateKey), address: s.address }, { to: tokenAddr, data: txData, gasLimit: 80000n }, "归集 " + info.symbol);
-              job.results.push({ row: s.index + 1, from: s.address, to: target, amount: ethers.formatUnits(balance, info.decimals), symbol: info.symbol, status: "ok", txHash: r.txHash, error: "" });
+              job.results.push({ row: s.index + 1, from: s.address, to: target, amount: ethers.formatUnits(sendAmt, info.decimals), symbol: info.symbol, status: "ok", txHash: r.txHash, error: "" });
               engine.hooks.onLog?.("[成功] 第" + (s.index + 1) + "行 " + info.symbol + " -> " + target + " hash=" + r.txHash);
             } catch (e) {
               const msg = e?.shortMessage || e?.message || String(e);
-              job.results.push({ row: s.index + 1, from: s.address, to: target, amount: ethers.formatUnits(balance, info.decimals), symbol: info.symbol, status: "failed", txHash: "", error: msg });
+              job.results.push({ row: s.index + 1, from: s.address, to: target, amount: ethers.formatUnits(sendAmt, info.decimals), symbol: info.symbol, status: "failed", txHash: "", error: msg });
               engine.hooks.onLog?.("[失败] 第" + (s.index + 1) + "行 " + msg.slice(0, 200));
             }
             job.done++;
@@ -423,12 +428,15 @@
         }
         const feePerTx = await engine.getFeePerTx();
         const reserve = (feePerTx * 110n) / 100n;
+        const pctN = Math.min(100, Math.max(1, Number(body.pct) || 100)) / 100;
+        const pctBig = BigInt(Math.round(pctN * 100));
         const items = [];
         for (const s of sources) {
           if (!s.privateKey || s.address.toLowerCase() === target.toLowerCase()) continue;
           const balance = BigInt(await engine.call((p) => p.getBalance(s.address), "查询余额 (" + s.address.slice(0, 10) + "...)"));
           if (balance <= reserve) continue;
-          const amount = balance - reserve;
+          const amount = ((balance - reserve) * pctBig) / 100n;
+          if (amount <= 0n) continue;
           items.push({ row: s.index + 1, to: target, amount: Number(ethers.formatEther(amount)), remark: "归集", walletIndex: s.index });
         }
         if (!items.length) throw new Error("没有可归集的钱包(余额不足或均已跳过)");
