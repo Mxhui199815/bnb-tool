@@ -275,15 +275,15 @@
     if (isToken) { try { const info = await E.getTokenInfo(engine, tokenAddr); decimals = info.decimals; symbol = info.symbol; } catch (e) {} }
     const out = [];
     for (const addr of addresses) {
-      let balance;
+      const bnb = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额 (" + addr.slice(0, 10) + "...)");
+      const rec = { address: addr, balance: ethers.formatEther(bnb) };
       if (isToken) {
         const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
-        balance = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额 (" + addr.slice(0, 10) + "...)")))[0]);
-        out.push({ address: addr, balance: ethers.formatUnits(balance, decimals), symbol });
-      } else {
-        balance = await engine.call((p) => p.getBalance(addr), "查询余额 (" + addr.slice(0, 10) + "...)");
-        out.push({ address: addr, balance: ethers.formatEther(balance) });
+        const tb = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额 (" + addr.slice(0, 10) + "...)")))[0]);
+        rec.tokenBalance = ethers.formatUnits(tb, decimals);
+        rec.symbol = symbol;
       }
+      out.push(rec);
     }
     return { ok: true, balances: out, isToken, symbol };
   }
