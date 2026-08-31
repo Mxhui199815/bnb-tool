@@ -888,7 +888,10 @@ function renderSwapTable() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       
-      <td><input data-sw="${i}" data-k="token" value="${esc(it.token)}" style="min-width:260px"></td>
+      <td class="cell-token">
+        <input data-sw="${i}" data-k="token" value="${esc(it.token)}" style="min-width:260px" placeholder="0x…">
+        <span class="token-sym" data-sym="${i}">${esc(it.symbol || "")}</span>
+      </td>
       <td><input data-sw="${i}" data-k="amount" value="${esc(it.amount)}"></td>
       <td><select data-sw="${i}" data-k="direction">
           <option value="buy" ${it.direction === "buy" ? "selected" : ""}>买 (BNB→Token)</option>
@@ -914,13 +917,33 @@ $("swapBody").addEventListener("input", (e) => {
   else if (k === "slippage") swapItems[i].slippage = el.value === "" ? null : Number(el.value);
   else swapItems[i][k] = el.value;
 });
+let swapSymTimer = null;
+$("swapBody").addEventListener("input", (e) => {
+  const el = e.target;
+  if (el.dataset.k !== "token") return;
+  const i = Number(el.dataset.sw);
+  clearTimeout(swapSymTimer);
+  swapSymTimer = setTimeout(async () => {
+    const addr = (el.value || "").trim();
+    const sp = document.querySelector('[data-sym="' + i + '"]');
+    if (!sp) return;
+    if (!ethers.isAddress(addr)) { sp.textContent = ""; if (swapItems[i]) swapItems[i].symbol = ""; return; }
+    sp.textContent = "查询中…";
+    try {
+      const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
+      const info = await window.EngineLib.getTokenInfo(engine, addr);
+      sp.textContent = info.symbol ? " " + info.symbol : "";
+      if (swapItems[i]) swapItems[i].symbol = info.symbol;
+    } catch (err) { sp.textContent = ""; }
+  }, 700);
+});
 $("swapBody").addEventListener("click", (e) => {
   const i = e.target.dataset.swdel;
   if (i != null) { swapItems.splice(Number(i), 1); swapItems.forEach((it, idx) => (it.row = idx + 1)); renderSwapTable(); }
 });
 
 $("swapBtnAdd").addEventListener("click", () => {
-  swapItems.push({ row: swapItems.length + 1, token: "", amount: "", direction: "buy", slippage: null, remark: "", walletIndex: -1 });
+  swapItems.push({ row: swapItems.length + 1, token: "", amount: "", direction: "buy", slippage: null, remark: "", walletIndex: -1, symbol: "" });
   renderSwapTable();
 });
 $("swapBtnClear").addEventListener("click", () => {
@@ -971,6 +994,7 @@ $("swapBtnPaste").addEventListener("click", () => {
       slippage: r[3] != null && r[3] !== "" ? Number(r[3]) : null,
       remark: String(r[4] || "").trim(),
       walletIndex: -1,
+      symbol: "",
     });
   }
   swapItems = swapItems.concat(items);
@@ -1077,7 +1101,7 @@ $("swapBtnPreview").addEventListener("click", async () => {
       <tbody>${data.plan.map((p) => `
         <tr>
           
-          <td class="mono">${esc(p.symbol)} ${esc(p.token.slice(0, 10))}…</td>
+          <td class="mono">${esc(p.token.slice(0, 10))}… ${esc(p.symbol)}</td>
           <td>${p.direction === "buy" ? "买" : "卖"}</td>
           <td class="mono">${esc(p.amountIn)}</td>
           <td class="mono">${p.out0 != null ? esc(p.out0) + (p.direction === "buy" ? " " + esc(p.symbol) : " BNB") : "—"}</td>
@@ -1126,7 +1150,7 @@ async function pollSwapJob() {
         <tbody>${data.results.map((r) => `
           <tr>
             
-            <td class="mono">${esc(r.symbol)} ${esc(r.token.slice(0, 10))}…</td>
+            <td class="mono">${esc(r.token.slice(0, 10))}… ${esc(r.symbol)}</td>
             <td>${r.direction === "buy" ? "买" : "卖"}</td>
             <td>${esc(r.amount)}</td>
             <td class="${r.status === "ok" ? "status-ok" : "status-failed"}">${r.status === "ok" ? "成功" : "失败"}</td>
