@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BNB 批量工具 - 在线版</title>
-<link rel="stylesheet" href="style.css?v=20260831e">
+<link rel="stylesheet" href="style.css?v=20260831f">
 </head>
 <body>
 <!-- ============ 会员登录遮罩 ============ -->
@@ -54,11 +54,10 @@
   <!-- ============ 页面: 批量转账 ============ -->
   <div class="page" id="page-transfer">
 <section class="card">
-      <h2>② 发送钱包</h2>
+      <h2>发送钱包</h2>
       <div class="row">
         <select id="walletType">
-          <option value="managed" selected>管理列表(本会话已导入私钥)</option>
-          <option value="mnemonic">助记词</option>
+          <option value="mnemonic" selected>助记词</option>
           <option value="privateKeys">私钥列表(逗号分隔)</option>
           <option value="secretsFile">上传 secrets.json</option>
         </select>
@@ -76,7 +75,7 @@
     </section>
 
 <section class="card">
-      <h2>③ 转账参数</h2>
+      <h2>转账参数</h2>
       <div class="grid2">
         <label>发送钱包数 <input type="number" id="cfgSenders" value="1" min="1"></label>
         <label>助记词起始序号 <input type="number" id="cfgStartIndex" value="0" min="0"></label>
@@ -90,7 +89,7 @@
     </section>
 
 <section class="card">
-      <h2>① 接收名单</h2>
+      <h2>接收名单</h2>
       <div class="row">
         <label class="file-btn">选择 CSV / Excel 文件<input type="file" id="fileInput" accept=".csv,.xlsx,.xls" hidden></label>
         <span class="hint" id="fileName"></span>
@@ -124,7 +123,7 @@
     </section>
 
 <section class="card">
-      <h2>④ 检查与发送</h2>
+      <h2>检查与发送</h2>
       <div class="row">
         <button id="btnPreview" class="btn primary">🔍 干跑检查</button>
         <button id="btnSend" class="btn danger">🚀 开始转账</button>
@@ -219,7 +218,7 @@
     <!-- ============ 页面: 薄饼交易 ============ -->
   <div class="page" id="page-swap">
 <section class="card">
-      <h2>② 交易参数与合约</h2>
+      <h2>交易参数与合约</h2>
       <div class="grid2">
         <label>默认滑点 % <input type="number" id="swapSlippage" value="1" min="0" max="50" step="0.1"></label>
         <label>收款地址(留空 = 发送方) <input type="text" id="swapRecipient" placeholder="0x…"></label>
@@ -233,7 +232,7 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
     </section>
 
 <section class="card">
-      <h2>① 发送钱包</h2>
+      <h2>发送钱包</h2>
       <div class="row">
         <select id="swapWalletType">
           <option value="managed" selected>管理列表(本会话已导入私钥)</option>
@@ -255,7 +254,7 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
     </section>
 
 <section class="card">
-      <h2>③ 交易名单</h2>
+      <h2>交易名单</h2>
       <div class="row">
         <textarea id="swapPaste" rows="3" placeholder="或粘贴 CSV: token,amount,direction,slippage,remark&#10;0x…代币地址,1,buy,1,备注"></textarea>
         <button id="swapBtnPaste" class="btn">解析粘贴</button>
@@ -272,7 +271,7 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
     </section>
 
 <section class="card">
-      <h2>④ 检查与执行</h2>
+      <h2>检查与执行</h2>
       <div class="row">
         <button id="swapBtnPreview" class="btn primary">🔍 交易检查</button>
         <button id="swapBtnSend" class="btn danger">🚀 执行交易</button>
@@ -301,9 +300,9 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
       <div class="grid2">
         <label>源钱包来源
           <select id="conSource">
+            <option value="managed" selected>管理列表(需重新导入私钥)</option>
             <option value="mnemonic">助记词派生</option>
             <option value="privateKeys">私钥列表</option>
-            <option value="managed">管理列表(需重新导入私钥)</option>
           </select>
         </label>
         <label>目标地址 <input type="text" id="conTarget" placeholder="0x… 归集目标地址"></label>
@@ -339,11 +338,11 @@ WBNB: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
 </main>
 
 <footer>网页版 · 密钥只在您的浏览器内存中处理, 不保存不上传 · 请从官方渠道访问, 谨防仿冒 · 操作前自行核对链与金额</footer>
-<script src="vendor/ethers.umd.min.js?v=20260831e"></script>
-<script src="vendor/exceljs.min.js?v=20260831e"></script>
-<script src="engine.js?v=20260831e"></script>
-<script src="license.js?v=20260831e"></script>
-<script src="webapi.js?v=20260831e"></script>
-<script src="app.js?v=20260831e"></script>
+<script src="vendor/ethers.umd.min.js?v=20260831f"></script>
+<script src="vendor/exceljs.min.js?v=20260831f"></script>
+<script src="engine.js?v=20260831f"></script>
+<script src="license.js?v=20260831f"></script>
+<script src="webapi.js?v=20260831f"></script>
+<script src="app.js?v=20260831f"></script>
 </body>
 </html>
