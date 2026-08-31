@@ -38,6 +38,7 @@ function readConfig() {
 
 /* ---------------- 名单 ---------------- */
 function renderItems() {
+  if (!items.length) items.push({ row: 1, to: "", amount: "", remark: "", walletIndex: -1 });
   const tb = $("itemsBody");
   tb.innerHTML = "";
   let total = 0;
@@ -45,7 +46,6 @@ function renderItems() {
     total += Number(it.amount) || 0;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${esc(it.row)}</td>
       <td class="cell-to">
         <input data-i="${i}" data-k="to" value="${esc(it.to)}" placeholder="0x…">
         ${managedWallets.length ? `<select class="pick-managed" data-pick="${i}" title="从管理列表选择地址">
@@ -60,12 +60,13 @@ function renderItems() {
       <td><button class="btn ghost" data-del="${i}">删除</button></td>`;
     tb.appendChild(tr);
   });
-  $("itemsTable").hidden = items.length === 0;
-  $("btnAddRow").hidden = items.length === 0;
-  $("btnCheckBalances").hidden = items.length === 0;
+  const real = items.filter((it) => it.to && it.amount);
+  $("itemsTable").hidden = false;
+  $("btnAddRow").hidden = false;
+  $("btnCheckBalances").hidden = real.length === 0;
   if (window.renderTransferRecv) renderTransferRecv();
-  $("listSummary").innerHTML = items.length
-    ? `共 <b>${items.length}</b> 笔, 合计 <b>${fmtNum(total)}</b> BNB` : "";
+  $("listSummary").innerHTML = real.length
+    ? `共 <b>${real.length}</b> 笔, 合计 <b>${fmtNum(real.reduce((s, it) => s + Number(it.amount || 0), 0))}</b> BNB` : "";
 }
 
 $("itemsBody").addEventListener("input", (e) => {
@@ -261,7 +262,7 @@ $("secretsFile").addEventListener("change", async (e) => {
 /* ---------------- 干跑检查 ---------------- */
 async function doPreview() {
   setErr("actionErr", "");
-  if (!items.length) { setErr("actionErr", "请先填写/解析接收名单"); return; }
+  if (!items.some((it) => it.to && it.amount)) { setErr("actionErr", "请先填写接收名单（地址 + 金额）"); return; }
   const cfg = readConfig();
   cfg.secretsJson = window._secretsJson;
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) {
@@ -296,7 +297,7 @@ function renderPreview(data) {
 /* ---------------- 发送 ---------------- */
 async function doSend() {
   setErr("actionErr", "");
-  if (!items.length) { setErr("actionErr", "请先填写/解析接收名单"); return; }
+  if (!items.some((it) => it.to && it.amount)) { setErr("actionErr", "请先填写接收名单（地址 + 金额）"); return; }
   const cfg = readConfig();
   cfg.secretsJson = window._secretsJson;
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) {
