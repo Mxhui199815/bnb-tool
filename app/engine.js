@@ -239,6 +239,7 @@ class TransferEngine {
     const base = ethers.toBigInt(await this.call((p) => p.send("eth_gasPrice", []), "获取 gas 价"));
     if (feeMode === "eip1559") {
       let maxFee = bump(base * 2n);
+      maxFee = (maxFee * BigInt(Math.round(Number(this.opts.gasSpeedMult ?? 1) * 100))) / 100n;
       let prio = bump(ethers.toBigInt(await this.call((p) => p.send("eth_maxPriorityFeePerGas", []), "获取优先费")));
       if (maxFee > cap) maxFee = cap;
       if (prio > maxFee) prio = maxFee;
@@ -246,6 +247,7 @@ class TransferEngine {
       return { maxFeePerGas: maxFee, maxPriorityFeePerGas: prio };
     }
     let gp = bump(base);
+    gp = (gp * BigInt(Math.round(Number(this.opts.gasSpeedMult ?? 1) * 100))) / 100n;
     if (gp > cap) gp = cap;
     return { gasPrice: gp };
   }
