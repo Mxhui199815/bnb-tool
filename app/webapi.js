@@ -171,7 +171,7 @@
     return { ok: true, mode, mnemonic, wallets };
   }
 
-  function apiWalletsImport(body) {
+  async function apiWalletsImport(body) {
     const mode = body.mode;
     let wallets = [];
     if (mode === "mnemonic") {
@@ -185,8 +185,13 @@
       if (!keys.length) throw new Error("请提供私钥");
       wallets = keys.map((k, i) => { const w = new ethers.Wallet(k.trim()); return { index: i, address: w.address, privateKey: w.privateKey }; });
     } else if (mode === "csv") {
-      if (!body.text) throw new Error("请粘贴 CSV 内容");
-      const rows = E.parseCsv(String(body.text));
+      let rows;
+      if (body.dataBase64) {
+        rows = await E.parseList({ dataBase64: body.dataBase64, filename: body.filename });
+      } else {
+        if (!body.text) throw new Error("请粘贴 CSV 内容");
+        rows = E.parseCsv(String(body.text));
+      }
       if (!rows.length) throw new Error("CSV 为空");
       let start = 0;
       if (!ethers.isAddress(rows[0][0]?.trim() || "")) start = 1;
@@ -268,24 +273,43 @@
     const target = ethers.getAddress(String(body.target || "").trim());
     const sources = buildSourceWallets(body);
     if (!sources.length) throw new Error("没有源钱包");
+    const tokenRaw = (body.token || "").trim();
+    const isToken = !!tokenRaw;
+    if (isToken && !ethers.isAddress(tokenRaw)) throw new Error("代币地址无效: " + tokenRaw);
+    const tokenAddr = isToken ? ethers.getAddress(tokenRaw) : null;
     const engine = new E.TransferEngine(conOpts(body));
+    let info = null;
+    if (isToken) {
+      try { info = await E.getTokenInfo(engine, tokenAddr); } catch (e) { info = { decimals: 18, symbol: "TOKEN" }; }
+    }
     const feePerTx = await engine.getFeePerTx();
     const reserve = (feePerTx * 110n) / 100n;
+    const tokenIface = isToken ? new ethers.Interface(E.TOKEN_ABI) : null;
     const plan = [];
     for (const s of sources) {
-      const balance = BigInt(await engine.call((p) => p.getBalance(s.address), "查询余额 (" + s.address.slice(0, 10) + "...)"));
-      let amount = 0n, ok = false, reason = "";
-      if (balance <= reserve) reason = "余额不足以支付手续费";
-      else if (s.address.toLowerCase() === target.toLowerCase()) reason = "源地址=目标地址, 跳过";
-      else if (!s.privateKey) reason = "无私钥, 仅查询余额";
-      else { amount = balance - reserve; ok = true; }
-      plan.push({ index: s.index, address: s.address, hasKey: !!s.privateKey, balance: ethers.formatEther(balance), fee: ethers.formatEther(feePerTx), amount: ethers.formatEther(amount), ok, reason });
+      let balance, amount = 0n, ok = false, reason = "", feeStr = ethers.formatEther(feePerTx);
+      if (isToken) {
+        const balData = tokenIface.encodeFunctionData("balanceOf", [s.address]);
+        balance = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额 (" + s.address.slice(0, 10) + "...)")))[0]);
+        feeStr = "BNB 付 gas";
+        if (balance <= 0n) reason = "代币余额为 0";
+        else if (s.address.toLowerCase() === target.toLowerCase()) reason = "源地址=目标地址, 跳过";
+        else if (!s.privateKey) reason = "无私钥, 仅查询余额";
+        else { amount = balance; ok = true; }
+        plan.push({ index: s.index, address: s.address, hasKey: !!s.privateKey, balance: ethers.formatUnits(balance, info.decimals), fee: feeStr, amount: ethers.formatUnits(amount, info.decimals), ok, reason });
+      } else {
+        balance = BigInt(await engine.call((p) => p.getBalance(s.address), "查询余额 (" + s.address.slice(0, 10) + "...)"));
+        if (balance <= reserve) reason = "余额不足以支付手续费";
+        else if (s.address.toLowerCase() === target.toLowerCase()) reason = "源地址=目标地址, 跳过";
+        else if (!s.privateKey) reason = "无私钥, 仅查询余额";
+        else { amount = balance - reserve; ok = true; }
+        plan.push({ index: s.index, address: s.address, hasKey: !!s.privateKey, balance: ethers.formatEther(balance), fee: feeStr, amount: ethers.formatEther(amount), ok, reason });
+      }
     }
     const okCount = plan.filter((p) => p.ok).length;
     const total = plan.filter((p) => p.ok).reduce((s, p) => s + Number(p.amount), 0);
-    return { ok: true, target, plan, okCount, total: Math.round(total * 1e8) / 1e8, feePerTx: ethers.formatEther(feePerTx) };
+    return { ok: true, target, isToken, token: tokenAddr, symbol: isToken ? info.symbol : null, plan, okCount, total: Math.round(total * 1e8) / 1e8, feePerTx: isToken ? null : ethers.formatEther(feePerTx) };
   }
-
   async function apiConsolidateSend(body) {
     if (activeSendJob) { const e = new Error("已有任务在进行中, 请等待完成"); e.status = 409; throw e; }
     const target = ethers.getAddress(String(body.target || "").trim());
@@ -302,6 +326,38 @@
         await engine.init();
         const senders = sources.filter((s) => s.privateKey).map((s) => ({ index: s.index, wallet: new ethers.Wallet(s.privateKey), address: s.address }));
         if (!senders.length) throw new Error("没有可发送的源钱包(缺失私钥)");
+        const tokenRaw = (body.token || "").trim();
+        const isToken = !!tokenRaw;
+        if (isToken) {
+          if (!ethers.isAddress(tokenRaw)) throw new Error("代币地址无效: " + tokenRaw);
+          const tokenAddr = ethers.getAddress(tokenRaw);
+          let info = { decimals: 18, symbol: "TOKEN" };
+          try { info = await E.getTokenInfo(engine, tokenAddr); } catch (e) {}
+          const tokenIface = new ethers.Interface(E.TOKEN_ABI);
+          let doneAny = false;
+          for (const s of sources) {
+            if (!s.privateKey || s.address.toLowerCase() === target.toLowerCase()) continue;
+            const balData = tokenIface.encodeFunctionData("balanceOf", [s.address]);
+            const balance = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额")))[0]);
+            if (balance <= 0n) continue;
+            const txData = tokenIface.encodeFunctionData("transfer", [target, balance]);
+            try {
+              const r = await E.broadcastTx(engine, { index: s.index, wallet: new ethers.Wallet(s.privateKey), address: s.address }, { to: tokenAddr, data: txData, gasLimit: 80000n }, "归集 " + info.symbol);
+              job.results.push({ row: s.index + 1, from: s.address, to: target, amount: ethers.formatUnits(balance, info.decimals), symbol: info.symbol, status: "ok", txHash: r.txHash, error: "" });
+              engine.hooks.onLog?.("[成功] 第" + (s.index + 1) + "行 " + info.symbol + " -> " + target + " hash=" + r.txHash);
+            } catch (e) {
+              const msg = e?.shortMessage || e?.message || String(e);
+              job.results.push({ row: s.index + 1, from: s.address, to: target, amount: ethers.formatUnits(balance, info.decimals), symbol: info.symbol, status: "failed", txHash: "", error: msg });
+              engine.hooks.onLog?.("[失败] 第" + (s.index + 1) + "行 " + msg.slice(0, 200));
+            }
+            job.done++;
+            doneAny = true;
+          }
+          if (!doneAny) throw new Error("没有可归集的代币(余额为 0 或均已跳过)");
+          job.status = "done";
+          job.finishedAt = Date.now();
+          return;
+        }
         const feePerTx = await engine.getFeePerTx();
         const reserve = (feePerTx * 110n) / 100n;
         const items = [];
@@ -500,7 +556,7 @@
     if (path === "api/send" && method === "POST") return await apiSend(body);
     if (path.startsWith("api/job/") && method === "GET") return apiJob(decodeURIComponent(path.slice("api/job/".length)));
     if (path === "api/wallets/generate" && method === "POST") return apiWalletsGenerate(body);
-    if (path === "api/wallets/import" && method === "POST") return apiWalletsImport(body);
+    if (path === "api/wallets/import" && method === "POST") return await apiWalletsImport(body);
     if (path === "api/wallets/balances" && method === "POST") return await apiWalletsBalances(body);
     if (path === "api/wallets/list" && method === "GET") return apiWalletsList();
     if (path === "api/wallets/save" && method === "POST") return apiWalletsSave(body);
