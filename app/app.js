@@ -1078,9 +1078,10 @@ async function readSwapConfig() {
     startIndex: 0,
     slippage: Number($("swapSlippage").value) || 1,
   };
-  if (t === "mnemonic") cfg.mnemonic = $("swapWalletInput").value.trim();
-  else if (t === "privateKeys") cfg.privateKeys = $("swapWalletInput").value.trim();
-  else if (t === "secretsFile") cfg.secretsJson = window._swapSecretsJson;
+  let senderCount = 1;
+  if (t === "mnemonic") { cfg.mnemonic = $("swapWalletInput").value.trim(); }
+  else if (t === "privateKeys") { cfg.privateKeys = $("swapWalletInput").value.trim(); senderCount = cfg.privateKeys.split(",").map((s) => s.trim()).filter(Boolean).length; cfg.senders = senderCount; }
+  else if (t === "secretsFile") { cfg.secretsJson = window._swapSecretsJson; if (cfg.secretsJson) { const pk = cfg.secretsJson.privateKeys || cfg.secretsJson.private_keys || cfg.secretsJson.keys; if (Array.isArray(pk)) { senderCount = pk.length; cfg.senders = senderCount; } } }
   else {
     if (!managedWallets.length) throw new Error("管理列表为空, 请先到「钱包管理」导入钱包");
     const checked = [...document.querySelectorAll(".swap-managed-check:checked")].map((c) => Number(c.dataset.i));
@@ -1089,6 +1090,7 @@ async function readSwapConfig() {
     if (!keys.length) throw new Error("勾选的钱包没有本会话私钥, 请先到「钱包管理」导入私钥");
     cfg.privateKeys = keys.join(",");
     cfg.senders = keys.length;
+    senderCount = keys.length;
   }
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) throw new Error("请先填写交易钱包(助记词/私钥/管理列表)");
   let amount;
@@ -1099,7 +1101,7 @@ async function readSwapConfig() {
   } else {
     amount = qty;
   }
-  cfg.items = [{ row: 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: -1 }];
+  cfg.items = Array.from({ length: senderCount }, (_, i) => ({ row: i + 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: i }));
   return cfg;
 }
 
@@ -1245,7 +1247,7 @@ $("swapBtnSend").addEventListener("click", async () => {
   try { cfg = await readSwapConfig(); }
   catch (e) { setErr("swapErr", e.message); return; }
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) { setErr("swapErr", "请先填写发送钱包(助记词/私钥/管理列表)"); return; }
-  const ok = confirm(`即将在 PancakeSwap 执行 1 笔交易(卖单会自动先授权 Router)。\n\n请确认: 代币地址/方向/数量/滑点正确, 链(chainId=${cfg.chainId})正确。\n\n继续吗?`);
+  const ok = confirm(`即将在 PancakeSwap 用 ${cfg.items.length} 个钱包批量执行 ${cfg.items.length} 笔交易(卖单会自动先授权 Router)。\n\n请确认: 代币地址/方向/数量/滑点正确, 链(chainId=${cfg.chainId})正确。\n\n继续吗?`);
   if (!ok) return;
   try {
     $("swapBtnSend").disabled = true;
