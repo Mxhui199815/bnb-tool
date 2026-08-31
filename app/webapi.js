@@ -481,7 +481,7 @@
       if (!(slippage >= 0 && slippage <= 50)) throw new Error("第 " + it.row + " 行滑点无效: " + slippage + "%");
       const info = await E.getTokenInfo(engine, token);
       const senderAddr = it.sender.address;
-      const path = it.direction === "buy" ? [E.WBNB, token] : [token, E.WBNB];
+      const path = it.direction === "buy" ? [E.getWBNB(body.chainId || 56), token] : [token, E.getWBNB(body.chainId || 56)];
       const amountIn = ethers.parseUnits(String(it.amount), it.direction === "buy" ? 18 : info.decimals);
       let balance = null, allowance = null, reason = "", ok = true;
       if (it.direction === "buy") {
@@ -539,7 +539,7 @@
           const slippage = it.slippage == null ? defaultSlippage : it.slippage;
           const token = ethers.getAddress(it.token);
           const info = await E.getTokenInfo(engine, token);
-          const path = it.direction === "buy" ? [E.WBNB, token] : [token, E.WBNB];
+          const path = it.direction === "buy" ? [E.getWBNB(body.chainId || 56), token] : [token, E.getWBNB(body.chainId || 56)];
           const amountIn = ethers.parseUnits(String(it.amount), it.direction === "buy" ? 18 : info.decimals);
           let ok = false, errMsg = "", approveHash = "", swapHash = "", blockNumber = "";
           try {
