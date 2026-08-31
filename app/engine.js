@@ -467,6 +467,8 @@ const DEFAULT_CHAIN_ID = 56;
 const MAX_UINT = ethers.MaxUint256;
 
 const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"; // BSC WBNB
+const WBNB_TESTNET = "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd"; // BSC 测试网 WBNB
+function getWBNB(chainId) { return Number(chainId) === 97 ? WBNB_TESTNET : WBNB; }
 const ROUTER_V2 = "0x10ED43C718714eb63d5aA57B78B54704E256024E"; // PancakeSwap V2 Router (主网)
 const ROUTER_V2_TESTNET = "0xD99D1c33F9fC3444f8101754aBC46c52416550D1"; // 测试网
 
@@ -562,7 +564,7 @@ async function broadcastTx(engine, sender, txReq, label) {
 window.EngineLib = {
   parseCsv, parseRows, validateItems, buildSenders, TransferEngine, parseList, loadSecrets,
   deriveWallets, getRouterAddress, getTokenInfo, broadcastTx,
-  WBNB, ROUTER_V2, ROUTER_V2_TESTNET, ROUTER_ABI, TOKEN_ABI,
+  WBNB, WBNB_TESTNET, getWBNB, ROUTER_V2, ROUTER_V2_TESTNET, ROUTER_ABI, TOKEN_ABI,
   MAX_UINT, BIP44_PATH, DEFAULT_RPC, DEFAULT_CHAIN_ID,
 };
 })();
