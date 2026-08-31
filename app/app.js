@@ -55,7 +55,7 @@ function renderItems() {
   });
   $("itemsTable").hidden = items.length === 0;
   $("btnAddRow").hidden = items.length === 0;
-  if ($("btnAddManaged")) $("btnAddManaged").hidden = managedWallets.length === 0;
+  if (window.renderTransferRecv) renderTransferRecv();
   $("listSummary").innerHTML = items.length
     ? `共 <b>${items.length}</b> 笔, 合计 <b>${fmtNum(total)}</b> BNB` : "";
 }
@@ -76,18 +76,42 @@ $("btnAddRow").addEventListener("click", () => {
   renderItems();
 });
 
-$("btnAddManaged").addEventListener("click", () => {
-  if (!managedWallets.length) {
-    setErr("listErr", "管理列表为空, 请先到「钱包管理」页面导入钱包");
-    return;
+/* 接收名单: 从管理列表勾选添加接收人 */
+function renderTransferRecv() {
+  const box = $("transferRecvBox");
+  if (!box) return;
+  box.hidden = managedWallets.length === 0;
+  const tb = $("transferRecvTable");
+  if (!managedWallets.length) { if (tb) tb.innerHTML = ""; return; }
+  $("transferRecvHint").textContent = `共 ${managedWallets.length} 个管理钱包, 勾选后加入接收名单`;
+  tb.innerHTML = `
+    <thead><tr>
+      <th style="width:34px"><input type="checkbox" id="transferRecvAll" checked title="全选"></th>
+      <th>#</th><th>地址</th><th>标签</th>
+    </tr></thead>
+    <tbody>${managedWallets.map((w, i) => `
+      <tr>
+        <td><input type="checkbox" class="recv-check" data-i="${i}" checked></td>
+        <td>${i + 1}</td>
+        <td class="mono">${esc(w.address)}</td>
+        <td>${esc(w.label || "")}</td>
+      </tr>`).join("")}</tbody>`;
+}
+$("transferRecvTable")?.addEventListener("change", (e) => {
+  if (e.target.id === "transferRecvAll") {
+    document.querySelectorAll(".recv-check").forEach((c) => (c.checked = e.target.checked));
   }
+});
+$("btnAddRecvManaged")?.addEventListener("click", () => {
+  const selected = [...document.querySelectorAll(".recv-check:checked")].map((c) => Number(c.dataset.i));
+  if (!selected.length) { setErr("listErr", "请勾选要加入接收名单的管理钱包"); return; }
   setErr("listErr", "");
-  const hasKeys = managedWallets.some((w) => w.privateKey);
-  for (const w of managedWallets) {
+  const chosen = selected.map((i) => managedWallets[i]);
+  for (const w of chosen) {
     items.push({ row: items.length + 1, to: w.address, amount: "", remark: w.label || "", walletIndex: -1 });
   }
   renderItems();
-  flashMsg("listErr", `✅ 已从管理列表添加 ${managedWallets.length} 个收款地址, 请在金额列填写数量${hasKeys ? "" : "(管理钱包无本会话私钥, 不影响收款)"}`, true);
+  flashMsg("listErr", `✅ 已把 ${chosen.length} 个管理钱包加入接收名单, 请在金额列填写数量`, true);
 });
 
 function applyParsed(parsed) {
@@ -195,7 +219,7 @@ $("secretsFile").addEventListener("change", async (e) => {
 /* ---------------- 干跑检查 ---------------- */
 async function doPreview() {
   setErr("actionErr", "");
-  if (!items.length) { setErr("actionErr", "请先填写/解析转账名单"); return; }
+  if (!items.length) { setErr("actionErr", "请先填写/解析接收名单"); return; }
   const cfg = readConfig();
   cfg.secretsJson = window._secretsJson;
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) {
@@ -230,7 +254,7 @@ function renderPreview(data) {
 /* ---------------- 发送 ---------------- */
 async function doSend() {
   setErr("actionErr", "");
-  if (!items.length) { setErr("actionErr", "请先填写/解析转账名单"); return; }
+  if (!items.length) { setErr("actionErr", "请先填写/解析接收名单"); return; }
   const cfg = readConfig();
   cfg.secretsJson = window._secretsJson;
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) {
@@ -529,11 +553,8 @@ async function saveManaged() {
 
 function renderMgrTable() {
   const tb = $("mgrTable");
-  const addBtn = $("btnAddManaged");
-  if (addBtn) {
-    addBtn.hidden = managedWallets.length === 0;
-    $("listManagedHint").textContent = managedWallets.length ? `管理列表共 ${managedWallets.length} 个钱包, 可一键加入名单` : "";
-  }
+  if (window.renderTransferRecv) renderTransferRecv();
+  $("listManagedHint").textContent = managedWallets.length ? `管理列表共 ${managedWallets.length} 个钱包, 可在转账页勾选加入接收名单` : "";
   if (!managedWallets.length) { tb.innerHTML = ""; return; }
   tb.innerHTML = `
     <thead><tr><th>#</th><th>地址</th><th>标签</th><th>余额 (BNB)</th><th>操作</th></tr></thead>
