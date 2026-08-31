@@ -4,6 +4,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const fmtNum = (n) => { const v = Math.round(Number(n) * 1e8) / 1e8; return v.toLocaleString("zh-CN", { maximumFractionDigits: 8 }); };
 
 let items = [];       // 当前名单
+let transferSymbol = "";  // 转账参数代币合约的币名
 let previewData = null;
 let sendJobId = null;
 let pollTimer = null;
@@ -69,7 +70,7 @@ function renderItems() {
   $("btnCheckBalances").hidden = real.length === 0;
   if (window.renderTransferRecv) renderTransferRecv();
   $("listSummary").innerHTML = real.length
-    ? `共 <b>${real.length}</b> 笔, 合计 <b>${fmtNum(real.reduce((s, it) => s + Number(it.amount || 0), 0))}</b> BNB` : "";
+    ? `共 <b>${real.length}</b> 笔, 合计 <b>${fmtNum(real.reduce((s, it) => s + Number(it.amount || 0), 0))}</b> ${transferSymbol || "代币"}` : "";
 }
 
 $("itemsBody").addEventListener("input", (e) => {
@@ -118,7 +119,7 @@ $("btnCheckBalances").addEventListener("click", async () => {
     for (const it of items) it.balance = it.to ? (map[it.to.toLowerCase()] ?? null) : null;
     renderItems();
     const total = items.reduce((s, it) => s + (Number(it.balance) || 0), 0);
-    flashMsg("listErr", `✅ 已查询 ${addrs.length} 个地址余额, 合计 ${fmtNum(total)} BNB`, true);
+    flashMsg("listErr", `✅ 已查询 ${addrs.length} 个地址余额, 合计 ${fmtNum(total)} ${transferSymbol || "代币"}`, true);
   } catch (e) { setErr("listErr", e.message); }
   finally { $("btnCheckBalances").disabled = false; $("btnCheckBalances").textContent = "🔍 查询接收人余额"; }
 });
@@ -159,7 +160,7 @@ $("btnBatchAmount").addEventListener("click", () => {
   setErr("listErr", "");
   for (const it of items) if (it.to) it.amount = v;
   renderItems();
-  flashMsg("listErr", `✅ 已把 ${targets.length} 行的金额批量填为 ${v} BNB`, true);
+  flashMsg("listErr", `✅ 已把 ${targets.length} 行的金额批量填为 ${v} ${transferSymbol || "代币"}`, true);
 });
 
 
@@ -306,15 +307,17 @@ $("cfgToken").addEventListener("input", () => {
     const addr = $("cfgToken").value.trim();
     const sp = $("cfgTokenSym");
     const hintEl = $("recvTokenHint");
-    if (!ethers.isAddress(addr)) { sp.textContent = ""; if (hintEl) hintEl.textContent = "请先在「转账参数」填写代币合约地址"; return; }
+    if (!ethers.isAddress(addr)) { sp.textContent = ""; transferSymbol = ""; if (hintEl) hintEl.textContent = "请先在「转账参数」填写代币合约地址"; renderItems(); return; }
     sp.textContent = "查询中…";
     if (hintEl) hintEl.textContent = "接收币种: 查询中…";
     try {
       const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
       const info = await window.EngineLib.getTokenInfo(engine, addr);
+      transferSymbol = info.symbol || "";
       sp.textContent = info.symbol ? "币种: " + info.symbol : "";
       if (hintEl) hintEl.textContent = info.symbol ? "接收币种: " + info.symbol + "（来自转账参数代币合约）" : "接收币种: 已填代币合约地址";
-    } catch (e2) { sp.textContent = ""; if (hintEl) hintEl.textContent = "接收币种: 已填代币合约地址(查询币名失败)"; }
+      renderItems();
+    } catch (e2) { sp.textContent = ""; transferSymbol = ""; if (hintEl) hintEl.textContent = "接收币种: 已填代币合约地址(查询币名失败)"; renderItems(); }
   }, 700);
 });
 
@@ -348,7 +351,7 @@ function renderPreview(data) {
   $("walletCards").innerHTML = data.wallets.map((w) => `
     <div class="wallet-card"><div class="addr">#${w.index} ${w.address}</div></div>`).join("");
   $("previewTable").innerHTML = `
-    <thead><tr><th>发送钱包</th><th>收款地址</th><th>金额 BNB</th><th>备注</th></tr></thead>
+    <thead><tr><th>发送钱包</th><th>收款地址</th><th>金额 (代币)</th><th>备注</th></tr></thead>
     <tbody>${data.plan.map((p) => `
       <tr><td>${esc(p.from)}</td><td>${esc(p.to)}</td><td>${p.amount}</td><td>${esc(p.remark)}</td></tr>`).join("")}</tbody>`;
 }
@@ -364,7 +367,7 @@ async function doSend() {
     return;
   }
   const total = items.reduce((s, i) => s + Number(i.amount || 0), 0);
-  const ok = confirm(`即将广播 ${items.length} 笔转账, 合计 ${fmtNum(total)} BNB。\n\n请确认: 名单、收款地址、金额、发送钱包、链(chainId=${cfg.chainId})都已核对无误。\n继续吗?`);
+  const ok = confirm(`即将广播 ${items.length} 笔转账, 合计 ${fmtNum(total)} ${transferSymbol || "代币"}。\n\n请确认: 名单、收款地址、金额、发送钱包、链(chainId=${cfg.chainId})都已核对无误。\n继续吗?`);
   if (!ok) return;
 
   try {
