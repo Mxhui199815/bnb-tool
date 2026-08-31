@@ -83,6 +83,10 @@
 
   /* ============ 转账 ============ */
   async function apiPreview(body) {
+    const tokenRaw = (body.token || "").trim();
+    const isToken = !!tokenRaw;
+    if (isToken && !ethers.isAddress(tokenRaw)) throw new Error("代币地址无效: " + tokenRaw);
+    const tokenAddr = isToken ? ethers.getAddress(tokenRaw) : null;
     const logs = [];
     window.__engineSink = (t) => logs.push(t);
     try {
@@ -93,19 +97,32 @@
       await engine.init();
       engine.assignSenders(senders, items);
       let balanceOk = true, balanceError = "";
-      try { balanceOk = body.skipBalanceCheck || await engine.checkBalances(items); }
-      catch (e) { balanceOk = false; balanceError = e?.shortMessage || e?.message || String(e); }
+      try {
+        if (isToken) balanceOk = await checkTokenBalances(engine, tokenAddr, items);
+        else balanceOk = body.skipBalanceCheck || await engine.checkBalances(items);
+      } catch (e) { balanceOk = false; balanceError = e?.shortMessage || e?.message || String(e); }
       const plan = items.map((it) => ({ row: it.row, from: it.sender.address, to: it.to, amount: it.amount, remark: it.remark, walletIndex: it.walletIndex }));
-      return {
-        ok: true,
-        wallets: senders.map((s) => ({ index: s.index, address: s.address })),
-        plan,
-        total: Math.round(items.reduce((s, i) => s + i.amount, 0) * 1e8) / 1e8,
-        balanceOk, balanceError,
-      };
+      return { ok: true, wallets: senders.map((s) => ({ index: s.index, address: s.address })), plan, total: Math.round(items.reduce((s, i) => s + i.amount, 0) * 1e8) / 1e8, balanceOk, balanceError, isToken, token: tokenAddr };
     } finally { window.__engineSink = null; }
   }
 
+  /** 代币模式余额检查: 每个发送钱包的代币余额 >= 分配转出总量 */
+  async function checkTokenBalances(engine, tokenAddr, items) {
+    const tokenIface = new ethers.Interface(E.TOKEN_ABI);
+    const assigned = new Map();
+    for (const it of items) {
+      const addr = it.sender.address;
+      if (!assigned.has(addr)) assigned.set(addr, 0n);
+      assigned.set(addr, assigned.get(addr) + ethers.parseUnits(String(it.amount), 18));
+    }
+    let ok = true;
+    for (const [addr, total] of assigned) {
+      const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
+      const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额 (" + addr.slice(0, 10) + "...)")))[0]);
+      if (bal < total) { ok = false; engine.hooks.onLog?.("[余额不足] " + addr + " 代币余额 " + ethers.formatUnits(bal, 18) + " < 需转出 " + ethers.formatUnits(total, 18)); }
+    }
+    return ok;
+  }
   function newJob(total) {
     return { id: "job-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8), status: "running", logs: [], results: [], done: 0, total, startedAt: Date.now(), finishedAt: null, error: "" };
   }
@@ -126,9 +143,40 @@
         E.validateItems(items);
         await engine.init();
         engine.assignSenders(senders, items);
-        const balanceOk = body.skipBalanceCheck || await engine.checkBalances(items);
-        if (!balanceOk) throw new Error("存在余额不足的发送钱包, 已中止");
-        const results = await engine.runSends(items, (result, done, total) => { job.results.push(result); job.done = done; job.total = total; });
+        let results;
+        const tokenRaw2 = (body.token || "").trim();
+        if (tokenRaw2) {
+          if (!ethers.isAddress(tokenRaw2)) throw new Error("代币地址无效: " + tokenRaw2);
+          const tokenAddr2 = ethers.getAddress(tokenRaw2);
+          let info = { decimals: 18, symbol: "TOKEN" };
+          try { info = await E.getTokenInfo(engine, tokenAddr2); } catch (e) {}
+          const balanceOk2 = await checkTokenBalances(engine, tokenAddr2, items);
+          if (!balanceOk2) throw new Error("存在代币余额不足的发送钱包, 已中止");
+          const tokenIface2 = new ethers.Interface(E.TOKEN_ABI);
+          results = [];
+          for (const it of items) {
+            const sender = it.sender;
+            const amount = ethers.parseUnits(String(it.amount), info.decimals);
+            const txData = tokenIface2.encodeFunctionData("transfer", [it.to, amount]);
+            try {
+              const r = await E.broadcastTx(engine, sender, { to: tokenAddr2, data: txData, gasLimit: 80000n }, "转账 第" + it.row + "行");
+              const row = { row: it.row, from: sender.address, to: it.to, amount: it.amount, remark: it.remark, status: "ok", txHash: r.txHash, error: "", symbol: info.symbol };
+              results.push(row); job.results.push(row);
+              engine.hooks.onLog?.("[成功] 第" + it.row + "行 " + info.symbol + " -> " + it.to + " hash=" + r.txHash);
+            } catch (e) {
+              const msg = e?.shortMessage || e?.message || String(e);
+              const row = { row: it.row, from: sender.address, to: it.to, amount: it.amount, remark: it.remark, status: "failed", txHash: "", error: msg, symbol: info.symbol };
+              results.push(row); job.results.push(row);
+              engine.hooks.onLog?.("[失败] 第" + it.row + "行 " + msg.slice(0, 200));
+            }
+            job.done++;
+            job.total = items.length;
+          }
+        } else {
+          const balanceOk = body.skipBalanceCheck || await engine.checkBalances(items);
+          if (!balanceOk) throw new Error("存在余额不足的发送钱包, 已中止");
+          results = await engine.runSends(items, (result, done, total) => { job.results.push(result); job.done = done; job.total = total; });
+        }
         job.status = "done";
         job.finishedAt = Date.now();
         job.results = results;
@@ -216,12 +264,25 @@
     if (!addresses.length) throw new Error("没有地址可查询");
     const opts = { rpc: body.rpc || undefined, chainId: body.chainId ? Number(body.chainId) : 56, maxGasPrice: 10, feeMode: "legacy" };
     const engine = new E.TransferEngine(opts);
+    const tokenRaw = (body.token || "").trim();
+    const isToken = !!tokenRaw && ethers.isAddress(tokenRaw);
+    const tokenAddr = isToken ? ethers.getAddress(tokenRaw) : null;
+    const tokenIface = isToken ? new ethers.Interface(E.TOKEN_ABI) : null;
+    let decimals = 18, symbol = null;
+    if (isToken) { try { const info = await E.getTokenInfo(engine, tokenAddr); decimals = info.decimals; symbol = info.symbol; } catch (e) {} }
     const out = [];
     for (const addr of addresses) {
-      const balance = await engine.call((p) => p.getBalance(addr), "查询余额 (" + addr.slice(0, 10) + "...)");
-      out.push({ address: addr, balance: ethers.formatEther(balance) });
+      let balance;
+      if (isToken) {
+        const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
+        balance = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额 (" + addr.slice(0, 10) + "...)")))[0]);
+        out.push({ address: addr, balance: ethers.formatUnits(balance, decimals), symbol });
+      } else {
+        balance = await engine.call((p) => p.getBalance(addr), "查询余额 (" + addr.slice(0, 10) + "...)");
+        out.push({ address: addr, balance: ethers.formatEther(balance) });
+      }
     }
-    return { ok: true, balances: out };
+    return { ok: true, balances: out, isToken, symbol };
   }
 
   function apiWalletsSave(body) {
