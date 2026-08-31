@@ -25,7 +25,7 @@ function readConfig() {
     token: $("cfgToken").value.trim() || undefined,
     items,
   };
-  if (!cfg.token) throw new Error("请填写代币合约地址(批量转账按该代币转账)");
+  if (!cfg.token) cfg.token = undefined;
   if (walletType === "mnemonic") cfg.mnemonic = $("walletInput").value.trim();
   else if (walletType === "privateKeys") cfg.privateKeys = $("walletInput").value.trim();
   else if (walletType === "managed") {
