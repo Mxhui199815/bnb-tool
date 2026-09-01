@@ -1051,11 +1051,12 @@ function renderSwapManaged() {
   }
   const withKeys = managedWallets.filter((w) => w.privateKey).length;
   $("swapManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可作发送方; 每个钱包可单独设置比例%, 交易数量=该钱包余额×比例 (买按BNB余额, 卖按代币余额)`;
+  const tokenSym = managedWallets.find((w) => w.swapTokenSym)?.swapTokenSym || null;
   tb.innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="swapManagedAll" checked title="全选"></th>
       <th>#</th>
-      <th>地址</th><th>标签</th><th>比例 %</th><th>发送方</th>
+      <th>地址</th><th>标签</th><th>比例 %</th><th>${tokenSym ? `代币余额 (${esc(tokenSym)})` : "代币余额"}</th><th>BNB 余额</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
@@ -1064,6 +1065,8 @@ function renderSwapManaged() {
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
         <td><input type="number" class="swap-managed-pct" data-swapPct="${i}" value="${w.swapPct ?? 100}" min="0" max="100" step="1" style="width:70px"></td>
+        <td class="mono">${w.swapTokenBal != null ? esc(w.swapTokenBal) : "—"}</td>
+        <td class="mono">${w.swapBnbBal != null ? esc(w.swapBnbBal) : "—"}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
 }
@@ -1201,16 +1204,39 @@ $("swapTokenAddr").addEventListener("input", () => {
   swapTopSymTimer = setTimeout(async () => {
     const addr = $("swapTokenAddr").value.trim();
     const sp = $("swapTokenName");
-    if (!ethers.isAddress(addr)) { sp.textContent = ""; return; }
+    if (!ethers.isAddress(addr)) {
+      sp.textContent = "";
+      for (const w of managedWallets) { w.swapTokenBal = null; w.swapTokenSym = null; w.swapBnbBal = null; }
+      if ($("swapWalletType").value === "managed") renderSwapManaged();
+      return;
+    }
     sp.textContent = "查询中…";
     try {
       const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
       const info = await window.EngineLib.getTokenInfo(engine, addr);
       sp.textContent = info.symbol ? "币种: " + info.symbol : "";
+      if (managedWallets.length) {
+        try {
+          const data = await api("/api/wallets/balances", {
+            rpc: $("cfgRpc").value.trim() || undefined,
+            chainId: Number($("cfgChainId").value) || 56,
+            addresses: managedWallets.map((w) => w.address),
+            token: addr,
+          });
+          for (const b of data.balances) {
+            const w = managedWallets.find((x) => x.address.toLowerCase() === b.address.toLowerCase());
+            if (!w) continue;
+            w.swapBnbBal = b.balance;
+            if (b.tokenBalance != null) { w.swapTokenBal = b.tokenBalance; w.swapTokenSym = data.symbol || info.symbol || "TOKEN"; }
+          }
+          if ($("swapWalletType").value === "managed") renderSwapManaged();
+        } catch (e3) {}
+      }
     } catch (e2) { sp.textContent = ""; }
   }, 700);
 });
-/* 交易百分比: 按余额比例自动填金额/数量 */
+
+  /* 交易百分比: 按余额比例自动填金额/数量 */
 function swapWalletOnlyCfg() {
   const t = $("swapWalletType").value;
   const cfg = { rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, senders: 1, startIndex: 0 };
