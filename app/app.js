@@ -1200,6 +1200,34 @@ $("swapTokenQty").addEventListener("input", () => {
   clearTimeout(swapQtyTimer);
   swapQtyTimer = setTimeout(updateSwapQuote, 700);
 });
+async function refreshSwapBalances() {
+  const addr = $("swapTokenAddr").value.trim();
+  if (!ethers.isAddress(addr) || !managedWallets.length) return;
+  try {
+    const info = await (async () => {
+      try {
+        const engine = new window.EngineLib.TransferEngine({ rpc: $("cfgRpc").value.trim() || undefined, chainId: Number($("cfgChainId").value) || 56, maxGasPrice: 10, feeMode: "legacy" });
+        return await window.EngineLib.getTokenInfo(engine, addr);
+      } catch (e) { return { symbol: null, decimals: 18 }; }
+    })();
+    const data = await api("/api/wallets/balances", {
+      rpc: $("cfgRpc").value.trim() || undefined,
+      chainId: Number($("cfgChainId").value) || 56,
+      addresses: managedWallets.map((w) => w.address),
+      token: addr,
+    });
+    for (const b of data.balances) {
+      const w = managedWallets.find((x) => x.address.toLowerCase() === b.address.toLowerCase());
+      if (!w) continue;
+      w.swapBnbBal = b.balance;
+      if (b.tokenBalance != null) { w.swapTokenBal = b.tokenBalance; w.swapTokenSym = data.symbol || info.symbol || "TOKEN"; }
+    }
+    if ($("swapWalletType").value === "managed") renderSwapManaged();
+  } catch (e) {
+    const sp = $("swapTokenName");
+    if (sp) sp.textContent = (sp.textContent ? sp.textContent + " " : "") + "(余额查询失败: " + String(e?.message || e).slice(0, 80) + ")";
+  }
+}
 let swapTopSymTimer = null;
 $("swapTokenAddr").addEventListener("input", () => {
   clearTimeout(swapTopSymTimer);
