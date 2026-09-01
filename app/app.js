@@ -929,7 +929,7 @@ $("conToken").addEventListener("input", () => {
             if (w && b.tokenBalance != null) { w.conTokenBalance = b.tokenBalance; w.conTokenSym = data.symbol || info.symbol || "TOKEN"; }
           }
           renderConManaged();
-        } catch (e3) {}
+        } catch (e3) { sp.textContent = "币种: " + (info.symbol || "") + " (余额查询失败: " + (e3?.message || e3 || "未知错误").slice(0, 80) + ")"; }
       }
     } catch (e2) { sp.textContent = ""; }
   }, 700);
@@ -1199,6 +1199,7 @@ $("swapTokenQty").addEventListener("input", () => {
   clearTimeout(swapQtyTimer);
   swapQtyTimer = setTimeout(updateSwapQuote, 700);
 });
+let swapTopSymTimer = null;
 $("swapTokenAddr").addEventListener("input", () => {
   clearTimeout(swapTopSymTimer);
   swapTopSymTimer = setTimeout(async () => {
