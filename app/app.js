@@ -1094,7 +1094,7 @@ async function readSwapConfig() {
   if (!ethers.isAddress(token)) throw new Error("合约地址无效: " + token);
   const direction = $("swapDirection").value;
   const qty = Number($("swapTokenQty").value);
-  if (!(qty > 0)) throw new Error("请填写交易数量(代币)");
+  if (t !== "managed" && !(qty > 0)) throw new Error("请填写交易数量(代币)");
   const cfg = {
     rpc: $("cfgRpc").value.trim() || undefined,
     chainId: Number($("cfgChainId").value) || 56,
