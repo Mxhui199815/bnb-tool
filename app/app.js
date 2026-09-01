@@ -1141,6 +1141,7 @@ async function readSwapConfig() {
         const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: token, data: balData }), "查询代币余额")))[0]);
         amount = Number(ethers.formatUnits(bal, info.decimals)) * pctN;
       }
+      if (!(amount > 0)) continue;
       out.push({ row: ki + 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: ki });
       ki++;
     }
@@ -1247,10 +1248,23 @@ async function swapFillBalance(pct, target, isToken) {
     let amt;
     if (isToken) {
       const info = await window.EngineLib.getTokenInfo(engine, token);
-      const tokenIface = new ethers.Interface(window.EngineLib.TOKEN_ABI);
-      const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
-      const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: token, data: balData }), "查询代币余额")))[0]);
-      amt = Number(ethers.formatUnits(bal, info.decimals)) * pct;
+      if ($("swapDirection").value === "buy") {
+        // 买方向: 用 pct 比例的 BNB 能买到多少代币, 填入交易数量
+        const balBnb = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额");
+        const spend = Number(ethers.formatEther(balBnb)) * pct;
+        const router = window.EngineLib.getRouterAddress({ chainId: cfg.chainId });
+        const routerIface = new ethers.Interface(window.EngineLib.ROUTER_ABI);
+        const path = [window.EngineLib.getWBNB(cfg.chainId), token];
+        const data = routerIface.encodeFunctionData("getAmountsOut", [ethers.parseEther(String(spend)), path]);
+        const ret = await engine.call((p) => p.call({ to: router, data }), "getAmountsOut");
+        const out = routerIface.decodeFunctionResult("getAmountsOut", ret)[0].slice(-1)[0];
+        amt = Number(ethers.formatUnits(out, info.decimals));
+      } else {
+        const tokenIface = new ethers.Interface(window.EngineLib.TOKEN_ABI);
+        const balData = tokenIface.encodeFunctionData("balanceOf", [addr]);
+        const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: token, data: balData }), "查询代币余额")))[0]);
+        amt = Number(ethers.formatUnits(bal, info.decimals)) * pct;
+      }
     } else {
       const bal = await engine.call((p) => p.getBalance(addr), "查询 BNB 余额");
       amt = Number(ethers.formatEther(bal)) * pct;
