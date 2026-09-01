@@ -525,7 +525,7 @@
     (async () => {
       try {
         const hooks = { onLog: jobLog(job) };
-        const { engine, senders } = await makeEngine(Object.assign({}, body, { hooks }), hooks);
+        const { engine, senders } = await makeEngine(Object.assign({}, body, { hooks, confirmations: 0 }), hooks);
         if (!senders.length) throw new Error("未提供发送钱包");
         await engine.init();
         engine.assignSenders(senders, items);
@@ -533,12 +533,17 @@
         const tokenIface = new ethers.Interface(E.TOKEN_ABI);
         const defaultSlippage = body.slippage == null || body.slippage === "" ? 1 : Number(body.slippage);
         const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
-        for (const it of items) {
+        const infoCache = new Map();
+        const getInfo = async (token) => {
+          if (!infoCache.has(token)) infoCache.set(token, await E.getTokenInfo(engine, token));
+          return infoCache.get(token);
+        };
+        const tasks = items.map((it) => async () => {
           const sender = it.sender;
           const toAddr = recipient && ethers.isAddress(recipient) ? ethers.getAddress(recipient) : sender.address;
           const slippage = it.slippage == null ? defaultSlippage : it.slippage;
           const token = ethers.getAddress(it.token);
-          const info = await E.getTokenInfo(engine, token);
+          const info = await getInfo(token);
           const path = it.direction === "buy" ? [E.getWBNB(body.chainId || 56), token] : [token, E.getWBNB(body.chainId || 56)];
           const amountIn = ethers.parseUnits(String(it.amount), it.direction === "buy" ? 18 : info.decimals);
           let ok = false, errMsg = "", approveHash = "", swapHash = "", blockNumber = "";
@@ -581,7 +586,16 @@
           job.results.push({ row: it.row, from: sender.address, to: token, token, symbol: info.symbol, direction: it.direction, amount: it.amount, status: ok ? "ok" : "failed", approveHash, txHash: swapHash, blockNumber, error: ok ? "" : errMsg });
           job.done++;
           job.total = items.length;
+        });
+        const PARALLEL = 4;
+        let cursor = 0;
+        async function runWorker() {
+          while (cursor < tasks.length) {
+            const fn = tasks[cursor++];
+            await fn();
+          }
         }
+        await Promise.all(Array.from({ length: Math.min(PARALLEL, tasks.length) }, runWorker));
         job.status = "done";
         job.finishedAt = Date.now();
       } catch (e) {
