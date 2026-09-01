@@ -142,7 +142,7 @@
     window.__engineSink = jobLog(job);
     (async () => {
       try {
-        const { engine, senders } = await makeEngine(body, { onLog: jobLog(job) });
+        const { engine, senders } = await makeEngine(Object.assign({}, body, { confirmations: 0 }), { onLog: jobLog(job) });
         E.validateItems(items);
         await engine.init();
         engine.assignSenders(senders, items);
@@ -157,7 +157,7 @@
           if (!balanceOk2) throw new Error("存在代币余额不足的发送钱包, 已中止");
           const tokenIface2 = new ethers.Interface(E.TOKEN_ABI);
           results = [];
-          for (const it of items) {
+          const tasks = items.map((it) => async () => {
             const sender = it.sender;
             const amount = ethers.parseUnits(String(it.amount), info.decimals);
             const txData = tokenIface2.encodeFunctionData("transfer", [it.to, amount]);
@@ -174,11 +174,37 @@
             }
             job.done++;
             job.total = items.length;
+          });
+          const PARALLEL = 10;
+        let cursor = 0;
+          async function runWorker() {
+            while (cursor < tasks.length) { const fn = tasks[cursor++]; await fn(); }
           }
+          await Promise.all(Array.from({ length: Math.min(PARALLEL, tasks.length) }, runWorker));
         } else {
           const balanceOk = body.skipBalanceCheck || await engine.checkBalances(items);
           if (!balanceOk) throw new Error("存在余额不足的发送钱包, 已中止");
-          results = await engine.runSends(items, (result, done, total) => { job.results.push(result); job.done = done; job.total = total; });
+          results = [];
+          const tasks2 = items.map((it) => async () => {
+            let ok = false, errMsg = "", txHash = "";
+            const amountWei = ethers.parseEther(String(it.amount));
+            try {
+              const r = await E.broadcastTx(engine, it.sender, { to: it.to, value: amountWei, gasLimit: 21000n }, "转账 第" + it.row + "行");
+              txHash = r.txHash; ok = true;
+              engine.hooks.onLog?.("[成功] 第" + it.row + "行 " + it.sender.address + " -> " + it.to + " " + it.amount + " BNB hash=" + txHash);
+            } catch (e) {
+              errMsg = e?.shortMessage || e?.message || String(e);
+              engine.hooks.onLog?.("[失败] 第" + it.row + "行 " + errMsg.slice(0, 200));
+            }
+            const row = { row: it.row, from: it.sender.address, to: it.to, amount: it.amount, remark: it.remark, status: ok ? "ok" : "failed", txHash, error: ok ? "" : errMsg };
+            results.push(row); job.results.push(row);
+            job.done++; job.total = items.length;
+          });
+          let cursor2 = 0;
+          async function runWorker2() {
+            while (cursor2 < tasks2.length) { const fn = tasks2[cursor2++]; await fn(); }
+          }
+          await Promise.all(Array.from({ length: Math.min(PARALLEL, tasks2.length) }, runWorker2));
         }
         job.status = "done";
         job.finishedAt = Date.now();
@@ -388,7 +414,7 @@
     (async () => {
       try {
         const hooks = { onLog: jobLog(job) };
-        const engine = new E.TransferEngine(Object.assign({}, conOpts(body), { hooks }));
+        const engine = new E.TransferEngine(Object.assign({}, conOpts(body), { hooks, confirmations: 0 }));
         await engine.init();
         const senders = sources.filter((s) => s.privateKey).map((s) => ({ index: s.index, wallet: new ethers.Wallet(s.privateKey), address: s.address }));
         if (!senders.length) throw new Error("没有可发送的源钱包(缺失私钥)");
@@ -400,15 +426,14 @@
           let info = { decimals: 18, symbol: "TOKEN" };
           try { info = await E.getTokenInfo(engine, tokenAddr); } catch (e) {}
           const tokenIface = new ethers.Interface(E.TOKEN_ABI);
-          let doneAny = false;
-          for (const s of sources) {
-            if (!s.privateKey || s.address.toLowerCase() === target.toLowerCase()) continue;
+          const pctN2 = Math.min(100, Math.max(1, Number(body.pct) || 100)) / 100;
+          const pctBig2 = BigInt(Math.round(pctN2 * 100));
+          const tasks3 = sources.filter((s) => s.privateKey && s.address.toLowerCase() !== target.toLowerCase()).map((s) => async () => {
             const balData = tokenIface.encodeFunctionData("balanceOf", [s.address]);
             const balance = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: tokenAddr, data: balData }), "查询代币余额")))[0]);
-            if (balance <= 0n) continue;
-            const pctN2 = Math.min(100, Math.max(1, Number(body.pct) || 100)) / 100;
-            const sendAmt = (balance * BigInt(Math.round(pctN2 * 100))) / 100n;
-            if (sendAmt <= 0n) continue;
+            if (balance <= 0n) return;
+            const sendAmt = (balance * pctBig2) / 100n;
+            if (sendAmt <= 0n) return;
             const txData = tokenIface.encodeFunctionData("transfer", [target, sendAmt]);
             try {
               const r = await E.broadcastTx(engine, { index: s.index, wallet: new ethers.Wallet(s.privateKey), address: s.address }, { to: tokenAddr, data: txData, gasLimit: 80000n }, "归集 " + info.symbol);
@@ -420,9 +445,15 @@
               engine.hooks.onLog?.("[失败] 第" + (s.index + 1) + "行 " + msg.slice(0, 200));
             }
             job.done++;
-            doneAny = true;
+            job.total = sources.length;
+          });
+          const PARALLEL3 = 10;
+          let cursor3 = 0;
+          async function runWorker3() {
+            while (cursor3 < tasks3.length) { const fn = tasks3[cursor3++]; await fn(); }
           }
-          if (!doneAny) throw new Error("没有可归集的代币(余额为 0 或均已跳过)");
+          await Promise.all(Array.from({ length: Math.min(PARALLEL3, tasks3.length) }, runWorker3));
+          if (!job.done) throw new Error("没有可归集的代币(余额为 0 或均已跳过)");          if (!doneAny) throw new Error("没有可归集的代币(余额为 0 或均已跳过)");
           job.status = "done";
           job.finishedAt = Date.now();
           return;
@@ -442,7 +473,28 @@
         }
         if (!items.length) throw new Error("没有可归集的钱包(余额不足或均已跳过)");
         engine.assignSenders(senders, items);
-        const results = await engine.runSends(items, (result, done, total) => { job.results.push(result); job.done = done; job.total = total; });
+        const results = [];
+        const tasks4 = items.map((it) => async () => {
+          let ok = false, errMsg = "", txHash = "";
+          const amountWei = ethers.parseEther(String(it.amount));
+          try {
+            const r = await E.broadcastTx(engine, it.sender, { to: it.to, value: amountWei, gasLimit: 21000n }, "归集 BNB 第" + it.row + "行");
+            txHash = r.txHash; ok = true;
+            engine.hooks.onLog?.("[成功] 第" + it.row + "行 " + it.sender.address + " -> " + it.to + " " + it.amount + " BNB hash=" + txHash);
+          } catch (e) {
+            errMsg = e?.shortMessage || e?.message || String(e);
+            engine.hooks.onLog?.("[失败] 第" + it.row + "行 " + errMsg.slice(0, 200));
+          }
+          const row = { row: it.row, from: it.sender.address, to: it.to, amount: it.amount, remark: it.remark, status: ok ? "ok" : "failed", txHash, error: ok ? "" : errMsg };
+          results.push(row); job.results.push(row);
+          job.done++; job.total = items.length;
+        });
+        const PARALLEL4 = 10;
+        let cursor4 = 0;
+        async function runWorker4() {
+          while (cursor4 < tasks4.length) { const fn = tasks4[cursor4++]; await fn(); }
+        }
+        await Promise.all(Array.from({ length: Math.min(PARALLEL4, tasks4.length) }, runWorker4));
         job.status = "done";
         job.finishedAt = Date.now();
         job.results = results;
@@ -587,7 +639,7 @@
           job.done++;
           job.total = items.length;
         });
-        const PARALLEL = 4;
+        const PARALLEL = 10;
         let cursor = 0;
         async function runWorker() {
           while (cursor < tasks.length) {
