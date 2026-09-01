@@ -1050,12 +1050,12 @@ function renderSwapManaged() {
     return;
   }
   const withKeys = managedWallets.filter((w) => w.privateKey).length;
-  $("swapManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可作发送方; 勾选后自动作为可用发送钱包(轮询)`;
+  $("swapManagedHint").textContent = `共 ${managedWallets.length} 个, 其中 ${withKeys} 个有本会话私钥可作发送方; 每个钱包可单独设置比例%, 交易数量=该钱包余额×比例 (买按BNB余额, 卖按代币余额)`;
   tb.innerHTML = `
     <thead><tr>
       <th style="width:34px"><input type="checkbox" id="swapManagedAll" checked title="全选"></th>
       <th>#</th>
-      <th>地址</th><th>标签</th><th>发送方</th>
+      <th>地址</th><th>标签</th><th>比例 %</th><th>发送方</th>
     </tr></thead>
     <tbody>${managedWallets.map((w, i) => `
       <tr>
@@ -1063,6 +1063,7 @@ function renderSwapManaged() {
         <td class="row-num">${i + 1}</td>
         <td class="mono">${esc(w.address)}</td>
         <td>${esc(w.label || "")}</td>
+        <td><input type="number" class="swap-managed-pct" data-swapPct="${i}" value="${w.swapPct ?? 100}" min="0" max="100" step="1" style="width:70px"></td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
 }
@@ -1102,6 +1103,7 @@ async function readSwapConfig() {
     slippage: Number($("swapSlippage").value) || 1,
   };
   let senderCount = 1;
+  let swapCheckedIdx = [];
   if (t === "mnemonic") { cfg.mnemonic = $("swapWalletInput").value.trim(); }
   else if (t === "privateKeys") { cfg.privateKeys = $("swapWalletInput").value.trim(); senderCount = cfg.privateKeys.split(",").map((s) => s.trim()).filter(Boolean).length; cfg.senders = senderCount; }
   else if (t === "secretsFile") { cfg.secretsJson = window._swapSecretsJson; if (cfg.secretsJson) { const pk = cfg.secretsJson.privateKeys || cfg.secretsJson.private_keys || cfg.secretsJson.keys; if (Array.isArray(pk)) { senderCount = pk.length; cfg.senders = senderCount; } } }
@@ -1109,6 +1111,7 @@ async function readSwapConfig() {
     if (!managedWallets.length) throw new Error("管理列表为空, 请先到「钱包管理」导入钱包");
     const checked = [...document.querySelectorAll(".swap-managed-check:checked")].map((c) => Number(c.dataset.i));
     if (!checked.length) throw new Error("请勾选要作为交易钱包的钱包(管理列表)");
+    swapCheckedIdx = checked;
     const keys = checked.map((i) => managedWallets[i].privateKey).filter(Boolean);
     if (!keys.length) throw new Error("勾选的钱包没有本会话私钥, 请先到「钱包管理」导入私钥");
     cfg.privateKeys = keys.join(",");
@@ -1116,6 +1119,35 @@ async function readSwapConfig() {
     senderCount = keys.length;
   }
   if (!cfg.mnemonic && !cfg.privateKeys && !cfg.secretsJson) throw new Error("请先填写交易钱包(助记词/私钥/管理列表)");
+  if (t === "managed") {
+    // 每个钱包按各自比例计算数量: 买=该钱包BNB余额*pct, 卖=该钱包代币余额*pct
+    const engine = new window.EngineLib.TransferEngine({ rpc: cfg.rpc, chainId: cfg.chainId, maxGasPrice: 10, feeMode: "legacy" });
+    const info = await window.EngineLib.getTokenInfo(engine, token);
+    const tokenIface = new ethers.Interface(window.EngineLib.TOKEN_ABI);
+    const out = [];
+    let ki = 0;
+    for (const mi of swapCheckedIdx) {
+      const w = managedWallets[mi];
+      if (!w.privateKey) continue;
+      const pct = Number(document.querySelector(`[data-swapPct="${mi}"]`)?.value || 100);
+      if (!(pct > 0)) continue;
+      const pctN = pct / 100;
+      let amount;
+      if (direction === "buy") {
+        const bal = await engine.call((p) => p.getBalance(w.address), "查询 BNB 余额");
+        amount = Number(ethers.formatEther(bal)) * pctN;
+      } else {
+        const balData = tokenIface.encodeFunctionData("balanceOf", [w.address]);
+        const bal = BigInt(tokenIface.decodeFunctionResult("balanceOf", (await engine.call((p) => p.call({ to: token, data: balData }), "查询代币余额")))[0]);
+        amount = Number(ethers.formatUnits(bal, info.decimals)) * pctN;
+      }
+      out.push({ row: ki + 1, token: token, amount: amount, direction: direction, slippage: null, remark: "", walletIndex: ki });
+      ki++;
+    }
+    if (!out.length) throw new Error("没有可执行的交易钱包, 请勾选并设置比例 > 0");
+    cfg.items = out;
+    return cfg;
+  }
   let amount;
   if (direction === "buy") {
     const q = await swapQuote(token, qty, cfg, true);
@@ -1231,7 +1263,16 @@ async function swapFillBalance(pct, target, isToken) {
 }
 $("swapQtyPct").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-pct]");
-  if (btn) swapFillBalance(Number(btn.dataset.pct) / 100, "swapTokenQty", true);
+  if (!btn) return;
+  const pct = Number(btn.dataset.pct);
+  if ($("swapWalletType").value === "managed") {
+    // 管理列表模式: 把比例批量填入每个钱包
+    document.querySelectorAll(".swap-managed-pct").forEach((inp) => { inp.value = pct; });
+    $("swapTokenQty").value = "";
+    updateSwapQuote();
+    return;
+  }
+  swapFillBalance(pct / 100, "swapTokenQty", true);
 });$("swapDirection").addEventListener("change", () => {
   $("swapTokenQty").value = "";
   updateSwapQuote();
