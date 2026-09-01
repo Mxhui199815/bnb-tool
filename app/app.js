@@ -276,6 +276,7 @@ function renderTransferManaged() {
         <td>${esc(w.label || "")}</td>
         <td>${w.privateKey ? "✅ 有私钥" : "🔒 无私钥"}</td>
       </tr>`).join("")}</tbody>`;
+  if (ethers.isAddress($("swapTokenAddr").value.trim())) refreshSwapBalances();
 }
 $("transferManagedTable").addEventListener("change", (e) => {
   if (e.target.id === "transferManagedAll") {
